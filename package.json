@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@10.23.0",
-  "description": "Tell whether a shell command runs a given program — through quotes, here-documents, substitutions and wrappers like env, sudo, xargs and bash -c",
+  "description": "Tell whether a shell command really runs a program — a fail-closed deny-list that sees through quotes, here-documents, $(…), bash -c, env, sudo and xargs",
   "author": "arenuzzz",
   "license": "MIT",
   "homepage": "https://github.com/arenuzzz/shell-command-guard#readme",
@@ -11,18 +11,25 @@
     "type": "git",
     "url": "git+https://github.com/arenuzzz/shell-command-guard.git"
   },
-  "bugs": "https://github.com/arenuzzz/shell-command-guard/issues",
+  "bugs": {
+    "url": "https://github.com/arenuzzz/shell-command-guard/issues"
+  },
   "keywords": [
     "shell",
     "bash",
+    "zsh",
     "command",
-    "deny-list",
-    "guard",
-    "parser",
-    "heredoc",
+    "command-parser",
     "security",
-    "agent",
-    "hook"
+    "deny-list",
+    "denylist",
+    "guard",
+    "heredoc",
+    "ai-agent",
+    "claude-code",
+    "pre-tool-use",
+    "hook",
+    "parser"
   ],
   "sideEffects": false,
   "exports": {
@@ -31,6 +38,7 @@
   },
   "types": "./dist/index.d.mts",
   "files": [
+    "CHANGELOG.md",
     "dist"
   ],
   "engines": {
@@ -54,5 +62,9 @@
     "typescript": "6.0.3",
     "unrun": "0.3.1",
     "vitest": "5.0.5"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
