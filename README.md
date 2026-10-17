@@ -31,7 +31,13 @@ Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed �
 - [API](#api)
   - [`deniedBy`](#deniedbycmd-deny) · [`runsCommand`](#runscommandcmd-command) ·
     [`commandSegments`](#commandsegmentscmd) · [`effectiveDeny`](#effectivedenypolicy-extra) ·
-    [`DEFAULT_DENY`](#default_deny) · [`DENY_REASONS`](#deny_reasons)
+    [`DEFAULT_DENY`](#default_deny) · [`DENY_REASONS`](#deny_reasons) ·
+    [`invocations`](#invocationscmd-command)
+- [Authorship](#authorship)
+  - [`authorshipViolations`](#authorshipviolationscmd-options) ·
+    [`authoredMessages`](#authoredmessagescmd) · [`branchNames`](#branchnamescmd) ·
+    [`aiSignatures`](#aisignaturestext) · [`isConventionalCommit`](#isconventionalcommitmessage-types) ·
+    [`isConventionalBranch`](#isconventionalbranchname-types)
 - [Recipes](#recipes)
 - [How it works](#how-it-works)
 - [Comparison](#comparison)
@@ -75,6 +81,8 @@ command the line could run is checked; and anything it cannot read is denied rat
   `pnpm exec`, `npm exec`, `yarn exec`, `bun x`, `git -C dir`, and zsh's `=cmd`, `noglob` and `nocorrect`.
 - ⏱️ **Catches commands set up to run later** — `trap '…' EXIT`, `alias`, `git rebase -x`, `git bisect run`,
   `git submodule foreach`, `git filter-branch`, and a pager, editor or ssh command set with `git -c`.
+- ✍️ **Checks what a line writes** — commit messages, `gh pr` text and new branch names, read from `-m`, `--trailer`,
+  `-F -` here-documents and `$(cat <<'EOF' …)`, checked for AI signatures, Conventional Commits and Conventional Branch.
 - 🔒 **Fails closed** — an expansion in command position, unbalanced quoting, a stdin-fed shell or `source`, a script
   file, a `git -c alias.*` or `git config alias.*`, and a line nested deeper than the stack return a reason instead
   of `null` — never a throw.
@@ -122,6 +130,14 @@ runsCommand('echo "then git commit"', 'git commit') // false
 | [`DEFAULT_DENY`](#default_deny) | `readonly string[]` |
 | [`DENY_REASONS`](#deny_reasons) | `{ expansion, unbalanced, gitAlias, stdinScript, scriptFile }` |
 | `DenyPolicy` (type) | `{ deny: readonly string[] }` |
+| [`invocations`](#invocationscmd-command) | `(cmd: string, command: string \| readonly string[]) => Invocation[]` |
+| [`authorshipViolations`](#authorshipviolationscmd-options) | `(cmd: string, options?: AuthorshipOptions) => string[]` |
+| [`authoredMessages`](#authoredmessagescmd) | `(cmd: string) => AuthoredMessage[]` |
+| [`branchNames`](#branchnamescmd) | `(cmd: string) => (string \| null)[]` |
+| [`aiSignatures`](#aisignaturestext) | `(text: string) => { line: number, text: string }[]` |
+| [`isConventionalCommit`](#isconventionalcommitmessage-types) | `(message: string, types?: readonly string[]) => boolean` |
+| [`isConventionalBranch`](#isconventionalbranchname-types) | `(name: string, types?: readonly string[]) => boolean` |
+| `COMMIT_TYPES`, `BRANCH_TYPES` | `readonly string[]` |
 
 ### `deniedBy(cmd, deny)`
 
@@ -199,6 +215,62 @@ folded away.
 | `stdinScript` | `'shell reads script from stdin'` | a shell runs without `-c` and without a script file (`echo … \| sh`, `bash -s`), `source` reads stdin or a process substitution, or `parallel` reads its commands from stdin |
 | `scriptFile` | `'shell runs a script file'` | a shell runs a script file (`bash deploy.sh`) this reading cannot see |
 
+### `invocations(cmd, command)`
+
+Lists every command a line certainly runs that starts with one of the patterns, read the way `runsCommand` reads it.
+Each entry has the command's words as the shell passes them (wrappers off, quotes removed, `null` for a word that
+depends on what runs) and what it reads on stdin from a here-document or here-string. A word that is one whole
+`$(cat <<'EOF' … EOF)` resolves to the here-document.
+
+```ts
+invocations('sudo git -C repo commit -m "fix: x" <<< y', 'git commit')
+// [{ args: ['git', 'commit', '-m', 'fix: x'], stdin: 'y\n' }]
+```
+
+## Authorship
+
+Checks for what a command line *writes*: commit messages, pull-request text and branch names. Commands are found with
+`invocations`, so a message that only appears in an `echo` or a heredoc body is never read, and one behind `env`,
+`sudo` or `bash -c` always is.
+
+### `authorshipViolations(cmd, options?)`
+
+Returns one line per violation: an AI signature in any `git commit` or `gh pr create|edit|comment|review|merge`
+(message, `--trailer`, title, body or file), a commit subject that is not Conventional Commits, or a new branch that
+is not Conventional Branch. What the line does not show (an editor, `-C HEAD`, `$MSG`) is not a violation. Message
+files are read only through `options.readFile`; `commitTypes` and `branchTypes` replace the defaults.
+
+```ts
+authorshipViolations('git switch -c Fix_Login && git commit -m "fixed it"')
+// ['branch "Fix_Login" is not a Conventional Branch', 'commit subject "fixed it" is not a Conventional Commit']
+```
+
+### `authoredMessages(cmd)`
+
+One `{ kind: 'commit' | 'pull-request', text, file }` per `git commit` or `gh pr …` the line runs. `text` joins
+`-m` paragraphs and `--trailer` lines, or a title and body; it reads `-F -` / `--body-file -` from a here-document.
+`file` names a message file, which is not opened.
+
+### `branchNames(cmd)`
+
+The branches a line creates or renames: `git checkout -b`, `git switch -c`, `git branch <name>`, `git branch -m`,
+`git worktree add -b`, and `git worktree add <path>`, which names its branch after the path.
+
+### `aiSignatures(text)`
+
+The 1-based lines that sign a text as AI-written: a `*-By:` / `*-With:` trailer naming an AI tool, its no-reply
+address, a Claude Code session link, a "Generated with …" footer or a leading 🤖. A tool named in prose does not count.
+
+### `isConventionalCommit(message, types?)`
+
+Whether the first non-comment line is `<type>(<scope>)!: <description>` with a lowercase scope. Subjects git writes
+(`Merge …`, `fixup! …`, `Revert "…"`) pass. Types default to `COMMIT_TYPES`.
+
+### `isConventionalBranch(name, types?)`
+
+Whether a name is `<type>/<description>` in lowercase letters, digits and single hyphens, with dots only in a
+`release/` version. `main`, `master` and `develop` pass. Prefixes default to `BRANCH_TYPES`.
+
 ## Recipes
 
 ### Claude Code (or any AI agent) `PreToolUse` hook
@@ -228,6 +300,33 @@ if (hit) {
       { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node ~/.claude/hooks/guard.mjs" }] }
     ]
   }
+}
+```
+
+### Authorship hook for an AI agent
+
+Block a commit or pull request that an agent signs, or that breaks Conventional Commits or Conventional Branch.
+
+```js
+// ~/.claude/hooks/authorship.mjs
+import { existsSync, readFileSync } from 'node:fs'
+import process from 'node:process'
+import { authorshipViolations } from 'shell-guards'
+
+const { tool_input: input } = JSON.parse(readFileSync(0, 'utf8'))
+function readFile(path) {
+  try {
+    return existsSync(path) ? readFileSync(path, 'utf8') : null
+  }
+  catch {
+    return null
+  }
+}
+const violations = authorshipViolations(input.command ?? '', { readFile })
+
+if (violations.length > 0) {
+  console.error(`Fix and retry:\n- ${violations.join('\n- ')}`)
+  process.exit(2)
 }
 ```
 

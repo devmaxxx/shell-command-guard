@@ -1,5 +1,5 @@
-import type { Doc, Found, Mode } from './types'
-import { EXP, Unreadable, WordReader } from './word-reader'
+import type { Doc, Found, Mode, Sink } from './types'
+import { EXP, SUB, Unreadable, WordReader } from './word-reader'
 
 const KEYWORD = String.raw`(?:!|\{|if|then|do|else|elif|while|until|time)[ \t]+`
 // `((` starts arithmetic, and `case` a pattern list, only where a command starts.
@@ -94,6 +94,13 @@ function doubleQuotedDelim(s: string, from: number): [number, string] {
   throw new Unreadable()
 }
 
+// What a command reads from its here-document. An unquoted body expands `$`, backquotes and backslashes, so its text
+// is known only when it holds none of them.
+function bodyText(body: string, doc: Doc): string | null {
+  const text = doc.strip ? body.replace(/^\t+/gm, '') : body
+  return doc.quoted || !/[$`\\]/.test(text) ? text : null
+}
+
 // The state one command list's scan carries from character to character.
 export interface Scan {
   cur: string
@@ -111,16 +118,16 @@ export class Reader extends WordReader {
 
   readonly base: number
 
-  readonly found: Found[]
+  readonly sink: Sink
 
   // bash 3.2 parses the text it cut out of $(…) on its own, so a here-document there may end with that text.
   readonly docsEndAtEof: boolean
 
-  constructor(s: string, mode: Mode, base: number, found: Found[], docsEndAtEof = false) {
+  constructor(s: string, mode: Mode, base: number, sink: Sink, docsEndAtEof = false) {
     super(s)
     this.mode = mode
     this.base = base
-    this.found = found
+    this.sink = sink
     this.docsEndAtEof = docsEndAtEof
   }
 
@@ -151,7 +158,13 @@ export class Reader extends WordReader {
 
   flush(scan: Scan, next: number): void {
     scan.sawCase ||= CASE_START.test(scan.cur)
-    this.found.push({ start: this.base + scan.start, text: scan.cur })
+    const found: Found = { start: this.base + scan.start, text: scan.cur }
+
+    for (const doc of scan.pending) {
+      doc.owner ??= found
+    }
+
+    this.sink.found.push(found)
     scan.cur = ''
     scan.start = next
     scan.atWord = true
@@ -333,7 +346,11 @@ export class Reader extends WordReader {
 
       // A shell runs the substitutions of a body that never closes, so they are read before this reading stops.
       if (!doc.quoted) {
-        new Reader(s.slice(from, to < 0 ? s.length : to), this.mode, this.base + from, this.found).body()
+        new Reader(s.slice(from, to < 0 ? s.length : to), this.mode, this.base + from, this.sink).body()
+      }
+
+      if (to >= 0 && doc.owner) {
+        doc.owner.stdin = bodyText(s.slice(from, to), doc)
       }
 
       if (to < 0 && !this.docsEndAtEof) {
@@ -365,7 +382,7 @@ export class Reader extends WordReader {
       throw new Unreadable()
     }
 
-    new Reader(this.s.slice(i + 1, j).replace(/\\([\\`$])/g, '$1'), this.mode, this.base + i + 1, this.found).commands(
+    new Reader(this.s.slice(i + 1, j).replace(/\\([\\`$])/g, '$1'), this.mode, this.base + i + 1, this.sink).commands(
       0,
       false,
     )
@@ -378,8 +395,13 @@ export class Reader extends WordReader {
       return this.commands(i, true) + 1
     }
 
-    const end = new Reader(this.s, { ...this.mode, heredocs: 'off' }, this.base, []).commands(i, true)
-    new Reader(this.s.slice(i, end), this.mode, this.base + i, this.found, true).commands(0, false)
+    const end = new Reader(this.s, { ...this.mode, heredocs: 'off' }, this.base, { found: [], subs: [] }).commands(i, true)
+    new Reader(this.s.slice(i, end), this.mode, this.base + i, this.sink, true).commands(0, false)
     return end + 1
+  }
+
+  substitution(from: number, to: number): string {
+    this.sink.subs.push(this.s.slice(from, to))
+    return `${SUB}${this.sink.subs.length - 1}${SUB}`
   }
 }
