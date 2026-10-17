@@ -14,7 +14,34 @@ Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed �
 [![bundle size](https://img.shields.io/bundlephobia/minzip/shell-command-guard)](https://bundlephobia.com/package/shell-command-guard)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
+[Install](#install) · [Quick start](#quick-start) · [API](#api) · [Recipes](#recipes) · [FAQ](#faq) ·
+[Security model](#security-model-and-limits)
+
+<img src="./assets/demo.svg" width="760" alt="Terminal demo: deniedBy allows grep &quot;git push&quot; notes.md but denies git push hidden behind env, bash -c, xargs, quoting, a stdin shell and python -c, and denies rm -r -f /">
+
 </div>
+
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [Why](#why)
+- [Features](#features)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [API](#api)
+  - [`deniedBy`](#deniedbycmd-deny) · [`runsCommand`](#runscommandcmd-command) ·
+    [`commandSegments`](#commandsegmentscmd) · [`effectiveDeny`](#effectivedenypolicy-extra) ·
+    [`DEFAULT_DENY`](#default_deny) · [`DENY_REASONS`](#deny_reasons)
+- [Recipes](#recipes)
+- [How it works](#how-it-works)
+- [Comparison](#comparison)
+- [Security model and limits](#security-model-and-limits)
+- [FAQ](#faq)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+</details>
 
 ## Why
 
@@ -30,6 +57,8 @@ mention the words.
 | `{git,push}` | allowed | `'command word comes from an expansion'` |
 | `echo origin \| xargs git push` | allowed | `'git push'` |
 | `g'i't push` | allowed | `'git push'` |
+| `trap 'git push' EXIT` | allowed | `'git push'` |
+| `python3 -c "import os; os.system('git push')"` | allowed | `'git push'` |
 | `grep "git push" notes.md` | allowed (`includes` would block it) | `null` — it only mentions it |
 
 `shell-command-guard` parses the line instead. Quoted strings, comments and quoted here-document bodies are data; every
@@ -287,6 +316,68 @@ rule when a reason such as `'shell runs a script file'` blocks a command you tru
 Run it in addition to OS-level isolation (containers, separate users, read-only mounts, scoped credentials), not in place
 of it.
 
+## FAQ
+
+<details>
+<summary><strong>Why is <code>rm -rf $DIR</code> denied?</strong></summary>
+
+`$DIR` is known only when the shell runs, and it could be `/`. `deniedBy` matches a pattern that an expansion could
+still complete, so `rm -rf $DIR` returns `'rm -rf /'` under `DEFAULT_DENY`. Spell the path out, or use `runsCommand`
+when you only need to know what certainly runs.
+
+</details>
+
+<details>
+<summary><strong>How do I allow a command that a deny reason blocks?</strong></summary>
+
+`deniedBy` returns the reason as a string, so you decide which ones to let through:
+
+```ts
+import { deniedBy, DENY_REASONS } from 'shell-command-guard'
+
+const hit = deniedBy(cmd, deny)
+const trusted = hit === DENY_REASONS.scriptFile && /^bash scripts\/[\w-]+\.sh$/.test(cmd)
+
+if (hit && !trusted) {
+  block(hit)
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Which shells does it understand?</strong></summary>
+
+It parses bash syntax and also reads each line the way bash 3.2, zsh and sh would, so a command that any of them runs
+is caught. Scripts handed to `bash`, `sh`, `zsh`, `dash`, `ksh`, `fish`, `csh` and others with `-c` are read the same
+way.
+
+</details>
+
+<details>
+<summary><strong>Does it run anything, or touch the filesystem?</strong></summary>
+
+No. It is a pure function over the command string: no child processes, no file reads, no environment lookups.
+
+</details>
+
+<details>
+<summary><strong>Should I use a deny-list or an allow-list?</strong></summary>
+
+A deny-list blocks the commands you name and lets the rest through, which suits an agent that should mostly work
+unattended. When the stakes are high, allow-list instead. `commandSegments` lists every command a line runs, so you can
+check each one against the list.
+
+</details>
+
+## Roadmap
+
+- [ ] More launchers: `setpriv`, `xcrun`, `direnv exec`, `mise exec`, `op run`
+- [ ] Resolve `rm` operands above `~` (`rm -rf ~/..`) against the real home directory
+- [ ] A small CLI for shell hooks and CI: `shell-command-guard --deny 'git push' -- "$CMD"`
+
+Found a bypass or a missing wrapper? [Open an issue](https://github.com/devmaxxx/shell-command-guard/issues).
+
 ## Contributing
 
 Issues and pull requests are welcome. A bypass — a line that runs a denied command while `deniedBy` returns `null` — is
@@ -298,6 +389,7 @@ pnpm test       # vitest
 pnpm lint       # eslint
 pnpm typecheck  # tsc
 pnpm build      # tsdown
+pnpm demo       # regenerate assets/demo.svg from the real deniedBy output
 ```
 
 ## License
