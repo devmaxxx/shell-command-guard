@@ -42,4 +42,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   operands, versioned interpreters (`python3.12`), and `gtimeout`, `fakeroot`, `unshare` and `sandbox-exec`.
 - Zero runtime dependencies, ESM only, TypeScript declarations, Node 20+.
 
-[0.1.0]: https://github.com/devmaxxx/shell-command-guard/releases/tag/v0.1.0
+[0.1.0]: https://github.com/devmaxxx/shell-guards/releases/tag/v0.1.0

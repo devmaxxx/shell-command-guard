@@ -1,17 +1,17 @@
 <div align="center">
 
-# shell-command-guard
+# shell-guards
 
 **Tell whether a shell command line really runs a program — the way bash would read it.**
 
 Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed — zero dependencies.
 
-[![npm version](https://img.shields.io/npm/v/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
-[![npm downloads](https://img.shields.io/npm/dm/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
-[![CI](https://img.shields.io/github/actions/workflow/status/devmaxxx/shell-command-guard/ci.yml?branch=main&label=CI)](https://github.com/devmaxxx/shell-command-guard/actions/workflows/ci.yml)
-[![types included](https://img.shields.io/npm/types/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
+[![npm version](https://img.shields.io/npm/v/shell-guards)](https://www.npmjs.com/package/shell-guards)
+[![npm downloads](https://img.shields.io/npm/dm/shell-guards)](https://www.npmjs.com/package/shell-guards)
+[![CI](https://img.shields.io/github/actions/workflow/status/devmaxxx/shell-guards/ci.yml?branch=main&label=CI)](https://github.com/devmaxxx/shell-guards/actions/workflows/ci.yml)
+[![types included](https://img.shields.io/npm/types/shell-guards)](https://www.npmjs.com/package/shell-guards)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](./package.json)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/shell-command-guard)](https://bundlephobia.com/package/shell-command-guard)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/shell-guards)](https://bundlephobia.com/package/shell-guards)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 [Install](#install) · [Quick start](#quick-start) · [API](#api) · [Recipes](#recipes) · [FAQ](#faq) ·
@@ -61,7 +61,7 @@ mention the words.
 | `python3 -c "import os; os.system('git push')"` | allowed | `'git push'` |
 | `grep "git push" notes.md` | allowed (`includes` would block it) | `null` — it only mentions it |
 
-`shell-command-guard` parses the line instead. Quoted strings, comments and quoted here-document bodies are data; every
+`shell-guards` parses the line instead. Quoted strings, comments and quoted here-document bodies are data; every
 command the line could run is checked; and anything it cannot read is denied rather than guessed.
 
 ## Features
@@ -89,16 +89,16 @@ command the line could run is checked; and anything it cannot read is denied rat
 ## Install
 
 ```sh
-npm install shell-command-guard
-pnpm add shell-command-guard
-yarn add shell-command-guard
-bun add shell-command-guard
+npm install shell-guards
+pnpm add shell-guards
+yarn add shell-guards
+bun add shell-guards
 ```
 
 ## Quick start
 
 ```ts
-import { DEFAULT_DENY, deniedBy, runsCommand } from 'shell-command-guard'
+import { DEFAULT_DENY, deniedBy, runsCommand } from 'shell-guards'
 
 deniedBy('pnpm test && sudo -u ci git push origin', ['git push']) // 'git push'
 deniedBy('grep "git push" notes.md', ['git push']) // null
@@ -210,13 +210,13 @@ blocks the call and shows stderr to the model.
 // ~/.claude/hooks/guard.mjs
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
-import { deniedBy, effectiveDeny } from 'shell-command-guard'
+import { deniedBy, effectiveDeny } from 'shell-guards'
 
 const { tool_input: input } = JSON.parse(readFileSync(0, 'utf8'))
 const hit = deniedBy(input.command ?? '', effectiveDeny({ deny: ['gh pr merge'] }))
 
 if (hit) {
-  console.error(`Blocked by shell-command-guard: ${hit}`)
+  console.error(`Blocked by shell-guards: ${hit}`)
   process.exit(2)
 }
 ```
@@ -238,7 +238,7 @@ Check a command before a bot or pipeline hands it to a shell.
 ```js
 // guard.mjs — usage: node guard.mjs "$CMD" && sh -c "$CMD"
 import process from 'node:process'
-import { DEFAULT_DENY, deniedBy } from 'shell-command-guard'
+import { DEFAULT_DENY, deniedBy } from 'shell-guards'
 
 const hit = deniedBy(process.argv[2] ?? '', DEFAULT_DENY)
 
@@ -251,7 +251,7 @@ if (hit) {
 ### Custom deny-list, and checks that apply only to one command
 
 ```ts
-import { deniedBy, effectiveDeny, runsCommand } from 'shell-command-guard'
+import { deniedBy, effectiveDeny, runsCommand } from 'shell-guards'
 
 const deny = effectiveDeny({ deny: ['docker', 'kubectl delete', 'terraform apply'] })
 
@@ -278,7 +278,7 @@ Patterns are word prefixes, so deny the program or subcommand (`'git clean'`) wh
 
 ## Comparison
 
-| | shell-command-guard | [unbash](https://www.npmjs.com/package/unbash) | [shell-quote](https://www.npmjs.com/package/shell-quote) | Naive regex / `startsWith` |
+| | shell-guards | [unbash](https://www.npmjs.com/package/unbash) | [shell-quote](https://www.npmjs.com/package/shell-quote) | Naive regex / `startsWith` |
 | --- | --- | --- | --- | --- |
 | Purpose | decide if a line runs a command | full bash AST parser (no policy) | tokenize and quote argv | — |
 | Quotes and comments are data | ✅ | ✅ | ✅ | ❌ |
@@ -333,7 +333,7 @@ when you only need to know what certainly runs.
 `deniedBy` returns the reason as a string, so you decide which ones to let through:
 
 ```ts
-import { deniedBy, DENY_REASONS } from 'shell-command-guard'
+import { deniedBy, DENY_REASONS } from 'shell-guards'
 
 const hit = deniedBy(cmd, deny)
 const trusted = hit === DENY_REASONS.scriptFile && /^bash scripts\/[\w-]+\.sh$/.test(cmd)
@@ -374,9 +374,9 @@ check each one against the list.
 
 - [ ] More launchers: `setpriv`, `xcrun`, `direnv exec`, `mise exec`, `op run`
 - [ ] Resolve `rm` operands above `~` (`rm -rf ~/..`) against the real home directory
-- [ ] A small CLI for shell hooks and CI: `shell-command-guard --deny 'git push' -- "$CMD"`
+- [ ] A small CLI for shell hooks and CI: `shell-guards --deny 'git push' -- "$CMD"`
 
-Found a bypass or a missing wrapper? [Open an issue](https://github.com/devmaxxx/shell-command-guard/issues).
+Found a bypass or a missing wrapper? [Open an issue](https://github.com/devmaxxx/shell-guards/issues).
 
 ## Contributing
 

@@ -108,7 +108,7 @@ function render(): string {
 
   const dots = [['#ff5f57', 20], ['#febc2e', 40], ['#28c840', 60]] as const
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" role="img" aria-label="shell-command-guard demo: deniedBy allows commands that only mention git push and denies the ones that run it through env, bash -c, xargs, quoting, a stdin shell or python">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}" role="img" aria-label="shell-guards demo: deniedBy allows commands that only mention git push and denies the ones that run it through env, bash -c, xargs, quoting, a stdin shell or python">
 <style>
 text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:${FONT_SIZE}px}
 .fade{animation:fade ${total.toFixed(2)}s infinite}
@@ -119,7 +119,7 @@ ${css.join('\n')}
 <rect x="0.5" y="0.5" width="${WIDTH - 1}" height="${height - 1}" rx="10" fill="${COLORS.window}" stroke="${COLORS.border}"/>
 <path d="M0.5 ${TITLE_BAR} V10.5 a10 10 0 0 1 10 -10 H${WIDTH - 10.5} a10 10 0 0 1 10 10 V${TITLE_BAR} Z" fill="${COLORS.bar}"/>
 ${dots.map(([fill, cx]) => `<circle cx="${cx}" cy="${TITLE_BAR / 2}" r="6" fill="${fill}"/>`).join('')}
-<text x="${WIDTH / 2}" y="${TITLE_BAR / 2 + 5}" fill="${COLORS.muted}" text-anchor="middle">shell-command-guard</text>
+<text x="${WIDTH / 2}" y="${TITLE_BAR / 2 + 5}" fill="${COLORS.muted}" text-anchor="middle">shell-guards</text>
 <g class="fade">
 ${lines.join('\n')}
 </g>
