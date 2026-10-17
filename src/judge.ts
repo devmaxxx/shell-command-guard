@@ -2,6 +2,29 @@ import type { Mode } from './types'
 import { DEFAULT_DENY } from './defaults'
 import { ASSIGNMENT_WORD, LEADING_ASSIGNMENTS, read, READINGS, tokenize } from './segments'
 import { EXP, GLOB } from './word-reader'
+import {
+  AWK_OPTS,
+  AWKS,
+  FD_EXEC,
+  FIND_EXEC,
+  FLOCK_OPTS,
+  GIT_OPTS,
+  GIT_SCRIPT_OPTS,
+  INTERPRETERS,
+  NONE,
+  PARALLEL_OPTS,
+  RUNNER_OPTS,
+  RUNNER_SUBCOMMANDS,
+  RUNNERS,
+  RUNUSER_OPTS,
+  SCRIPT_OPTS,
+  SHELL_OPTS,
+  SHELLS,
+  SSH_OPTS,
+  WATCH_OPTS,
+  WRAPPERS,
+  XARGS_OPTS,
+} from './wrappers'
 
 /**
  * The reasons {@link deniedBy} returns when it cannot tell what a command runs, in place of a matched pattern.
@@ -40,99 +63,21 @@ type Next = { tokens: string[] } | { verdict: string | null }
 const BASH_READING: readonly Mode[] = [{ comments: true, heredocs: 'on' }]
 
 const KEYWORDS = new Set(['!', '{', '}', 'if', 'then', 'do', 'else', 'elif', 'while', 'until'])
-const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ash', 'ksh', 'mksh', 'fish', 'csh', 'tcsh'])
-const NONE: ReadonlySet<string> = new Set()
-const SHELL_OPTS: ReadonlySet<string> = new Set(['-o', '+o', '-O', '+O', '--rcfile', '--init-file'])
-const PNPM_OPTS: ReadonlySet<string> = new Set(['-C', '--dir', '-F', '--filter', '--loglevel', '--reporter'])
-const NPM_OPTS: ReadonlySet<string> = new Set(['-w', '--workspace', '--prefix', '--loglevel', '--userconfig'])
-const YARN_OPTS: ReadonlySet<string> = new Set(['--cwd'])
-const RUNNER_OPTS: ReadonlySet<string> = new Set(['-p', '--package', '-w', '--workspace'])
-const WATCH_OPTS: ReadonlySet<string> = new Set(['-n', '--interval', '-q', '--equexit'])
-const FLOCK_OPTS: ReadonlySet<string> = new Set(['-w', '--wait', '--timeout', '-E', '--conflict-exit-code'])
-const FIND_EXEC = new Set(['-exec', '-execdir', '-ok', '-okdir'])
+const PARALLEL_SEPARATOR = /^:{3,4}\+?$/
+// GNU parallel's replacement strings: `{}`, `{.}`, `{/}`, `{//}`, `{/.}`, `{#}`, `{%}` and the positional `{1}`.
+const PARALLEL_REPLACEMENT = /\{[\d./#%]*\}/g
+const STDIN_FILE = /^(?:-|\/dev\/stdin|\/dev\/fd\/\d+|\/proc\/self\/fd\/\d+)$/
 
-// The package runner subcommands that run a command, by the options each runner takes before its subcommand.
-const RUNNER_SUBCOMMANDS: Record<string, { opts: ReadonlySet<string>, subcommands: readonly string[] }> = {
-  pnpm: { opts: PNPM_OPTS, subcommands: ['exec', 'dlx'] },
-  npm: { opts: NPM_OPTS, subcommands: ['exec', 'x'] },
-  yarn: { opts: YARN_OPTS, subcommands: ['exec', 'dlx'] },
-}
-const RUNNERS = new Set(['npx', 'pnpx', 'bunx'])
+function firstHit<T>(items: readonly T[], judgeItem: (item: T) => string | null): string | null {
+  for (const item of items) {
+    const hit = judgeItem(item)
 
-// Options that consume the next token; any other token starting with '-' stands alone.
-const ARG_OPTS: Record<
-  | 'env'
-  | 'command'
-  | 'time'
-  | 'exec'
-  | 'sudo'
-  | 'nice'
-  | 'xargs'
-  | 'timeout'
-  | 'git'
-  | 'setsid'
-  | 'stdbuf'
-  | 'ionice'
-  | 'chronic'
-  | 'busybox',
-  ReadonlySet<string>
-> = {
-  env: new Set(['-u', '--unset', '-C', '--chdir']),
-  command: NONE,
-  time: NONE,
-  exec: new Set(['-a']),
-  sudo: new Set([
-    '-u',
-    '--user',
-    '-g',
-    '--group',
-    '-h',
-    '--host',
-    '-p',
-    '--prompt',
-    '-C',
-    '--close-from',
-    '-D',
-    '--chdir',
-    '-R',
-    '--chroot',
-    '-r',
-    '--role',
-    '-t',
-    '--type',
-    '-T',
-    '--command-timeout',
-    '-U',
-    '--other-user',
-  ]),
-  nice: new Set(['-n', '--adjustment']),
-  xargs: new Set([
-    '-a',
-    '--arg-file',
-    '-d',
-    '--delimiter',
-    '-E',
-    '-I',
-    '-L',
-    '--max-lines',
-    '-n',
-    '--max-args',
-    '-P',
-    '--max-procs',
-    '-s',
-    '--max-chars',
-  ]),
-  timeout: new Set(['-s', '--signal', '-k', '--kill-after']),
-  git: new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env', '--super-prefix']),
-  setsid: NONE,
-  stdbuf: new Set(['-i', '--input', '-o', '--output', '-e', '--error']),
-  ionice: new Set(['-c', '--class', '-n', '--classdata', '-p', '--pid', '-P', '--pgid', '-u', '--uid']),
-  chronic: NONE,
-  busybox: NONE,
-}
+    if (hit) {
+      return hit
+    }
+  }
 
-function hasArgOpts(exe: string): exe is keyof typeof ARG_OPTS {
-  return Object.hasOwn(ARG_OPTS, exe)
+  return null
 }
 
 function needsArg(t: string, takesArg: ReadonlySet<string>): boolean {
@@ -196,9 +141,14 @@ function unknowable(judge: Judge, reason: string): string | null {
 }
 
 const MAX_DEPTH = 8
+const FLOCK_SCRIPT_OPTS = ['-c', '--command']
+
+function scriptVerdict(script: string, name: string, judge: Judge, depth: number): string | null {
+  return depth >= MAX_DEPTH ? unknowable(judge, name) : judgeCommand(script, judge, depth + 1)
+}
 
 function nestedScript(script: string, name: string, judge: Judge, depth: number): Next {
-  return { verdict: depth >= MAX_DEPTH ? unknowable(judge, name) : judgeCommand(script, judge, depth + 1) }
+  return { verdict: scriptVerdict(script, name, judge, depth) }
 }
 
 // Every form the command passes through while its wrappers come off is matched, so a list that names a wrapper
@@ -250,70 +200,308 @@ function matchTokens(start: string[], outer: Judge, depth: number): string | nul
 
 function unwrap(tokens: string[], head: string, judge: Judge, depth: number): Next {
   const exe = head.slice(head.lastIndexOf('/') + 1)
+  const wrapper = Object.hasOwn(WRAPPERS, exe) ? WRAPPERS[exe] : undefined
   const runner = Object.hasOwn(RUNNER_SUBCOMMANDS, exe) ? RUNNER_SUBCOMMANDS[exe] : undefined
+
+  // zsh replaces a word starting with `=` by the path of the command it names.
+  if (judge.strict && head.length > 1 && head.startsWith('=')) {
+    return { tokens: [head.slice(1), ...tokens.slice(1)] }
+  }
 
   if (exe !== head) {
     return { tokens: [exe, ...tokens.slice(1)] }
   }
 
-  if (exe === 'command' && (tokens[1] === '-v' || tokens[1] === '-V')) {
+  if (exe === 'command' && tokens.slice(1, skipOptions(tokens, 1, NONE)).some(t => /^-\w*v/i.test(t))) {
     // `command -v` only looks a name up; it runs nothing.
     return { verdict: null }
   }
 
-  if (exe === 'builtin' || exe === 'nohup') {
-    return { tokens: tokens.slice(1) }
+  if (wrapper && (judge.strict || !wrapper.zsh)) {
+    const end = skipOptions(tokens, 1, wrapper.opts) + (wrapper.operands ?? 0)
+    return { tokens: (exe === 'env' ? splitEnvString(tokens) : null) ?? tokens.slice(end) }
   }
 
-  if (exe === 'timeout') {
-    return { tokens: tokens.slice(skipOptions(tokens, 1, ARG_OPTS.timeout) + 1) }
+  if (runner) {
+    const at = skipOptions(tokens, 1, runner.opts)
+    const subcommand = tokens[at] ?? ''
+
+    if (runner.run.includes(subcommand)) {
+      return packageRunner(tokens, at + 1, judge, depth)
+    }
+
+    if (runner.shell.includes(subcommand)) {
+      return nestedScript(tokens.slice(at + 1).join(' '), exe, judge, depth)
+    }
   }
 
-  if (exe === 'env') {
-    return { tokens: splitEnvString(tokens) ?? tokens.slice(skipOptions(tokens, 1, ARG_OPTS.env)) }
-  }
+  return unwrapProgram(tokens, exe, judge, depth)
+}
 
-  if (hasArgOpts(exe) && exe !== 'git') {
-    return { tokens: tokens.slice(skipOptions(tokens, 1, ARG_OPTS[exe])) }
-  }
-
-  if (runner && runner.subcommands.includes(tokens[skipOptions(tokens, 1, runner.opts)] ?? '')) {
-    return packageRunner(tokens, skipOptions(tokens, 1, runner.opts) + 1, judge, depth)
+function unwrapProgram(tokens: string[], exe: string, judge: Judge, depth: number): Next {
+  switch (exe) {
+    case 'coproc':
+      return { tokens: tokens.slice(tokens[2] === '{' ? 2 : 1) }
+    case 'function':
+      return { tokens: tokens.slice(2) }
+    case '[[':
+      return zshShortCondition(tokens, judge)
+    case 'xargs':
+      return { tokens: xargs(tokens) }
+    case 'parallel':
+      return parallel(tokens, judge, depth)
+    case 'watch':
+      return watch(tokens, judge, depth)
+    case 'flock':
+      return flock(tokens, judge, depth)
+    case 'find':
+    case 'fd': {
+      const commands = execCommands(tokens, exe === 'find' ? FIND_EXEC : FD_EXEC)
+      return { verdict: firstHit(commands, sub => matchTokens(sub, judge, depth)) }
+    }
+    case 'eval':
+      return nestedScript(tokens.slice(tokens[1] === '--' ? 2 : 1).join(' '), 'eval', judge, depth)
+    case 'ssh':
+      return ssh(tokens, judge, depth)
+    case 'script':
+      return script(tokens, judge, depth)
+    case 'su':
+    case 'runuser':
+      return switchUser(tokens, exe, judge, depth)
+    case 'trap':
+      return trap(tokens, judge, depth)
+    case 'alias':
+      return alias(tokens, judge, depth)
+    case 'source':
+    case '.':
+      return source(tokens, judge)
+    case 'git':
+      return git(tokens, judge, depth)
+    case 'rm':
+      return { verdict: rmByFlags(tokens, judge) }
   }
 
   if (RUNNERS.has(exe)) {
     return packageRunner(tokens, 1, judge, depth)
   }
 
-  if (exe === 'watch') {
-    return watch(tokens, judge, depth)
-  }
-
-  if (exe === 'flock') {
-    return flock(tokens, judge, depth)
-  }
-
-  if (exe === 'find') {
-    return { verdict: findCommands(tokens).reduce<string | null>((hit, sub) => hit ?? matchTokens(sub, judge, depth), null) }
-  }
-
-  if (exe === 'eval') {
-    return nestedScript(tokens.slice(1).join(' '), 'eval', judge, depth)
-  }
-
   if (SHELLS.has(exe)) {
     return shellScript(tokens, exe, judge, depth)
   }
 
-  if (exe === 'git') {
-    return git(tokens, judge)
-  }
+  // `python3.12` and `lua5.4` take the options of `python` and `lua`.
+  const interpreter = Object.hasOwn(INTERPRETERS, exe) ? exe : exe.replace(/[\d.]+$/, '')
 
-  if (exe === 'rm') {
-    return { verdict: rmByFlags(tokens, judge) }
+  if (Object.hasOwn(INTERPRETERS, interpreter) || AWKS.has(exe)) {
+    const program = AWKS.has(exe) ? exe : interpreter
+    return { verdict: judge.strict ? firstHit(inlinePrograms(tokens, program), p => wordsMatch(p, judge)) : null }
   }
 
   return { verdict: null }
+}
+
+// zsh runs `[[ cond ]] cmd` as a short `if`; bash rejects it, so only the strict reading follows it.
+function zshShortCondition(tokens: string[], judge: Judge): Next {
+  const end = tokens.indexOf(']]')
+  return judge.strict && end > 0 ? { tokens: tokens.slice(end + 1) } : { verdict: null }
+}
+
+// xargs appends the words it reads to the command, or puts them where its replace-string stands, so a pattern they
+// could complete counts.
+function xargs(tokens: string[]): string[] {
+  const end = skipOptions(tokens, 1, XARGS_OPTS)
+  const replace = replaceString(tokens.slice(1, end))
+  const command = end < tokens.length ? tokens.slice(end) : ['echo']
+
+  return replace === null ? [...command, EXP] : command.map(t => t.replaceAll(replace, EXP))
+}
+
+function replaceString(options: string[]): string | null {
+  let replace: string | null = null
+
+  for (let i = 0; i < options.length; i++) {
+    const t = options[i] ?? ''
+
+    if (t.startsWith('--')) {
+      if (t === '--replace') {
+        replace = '{}'
+      }
+      else if (t.startsWith('--replace=')) {
+        replace = t.slice('--replace='.length)
+      }
+
+      continue
+    }
+
+    // In a cluster such as -tI{} the first letter that takes an argument consumes the rest of the cluster.
+    for (let j = 1; j < t.length; j++) {
+      const letter = t[j] ?? ''
+      const rest = t.slice(j + 1)
+
+      if (letter === 'I' || letter === 'i') {
+        replace = rest || (letter === 'i' ? '{}' : (options[++i] ?? null))
+        break
+      }
+
+      if (XARGS_OPTS.has(`-${letter}`)) {
+        i += rest === '' ? 1 : 0
+        break
+      }
+    }
+  }
+
+  return replace || null
+}
+
+// GNU parallel runs its command through a shell with the input appended; with no command, each input is a command.
+function parallel(tokens: string[], judge: Judge, depth: number): Next {
+  const end = skipOptions(tokens, 1, PARALLEL_OPTS)
+  const separator = tokens.findIndex((t, i) => i >= end && PARALLEL_SEPARATOR.test(t))
+  const command = tokens.slice(end, separator < 0 ? tokens.length : separator)
+
+  if (command.length > 0) {
+    return nestedScript([...command, EXP].join(' ').replace(PARALLEL_REPLACEMENT, EXP), 'parallel', judge, depth)
+  }
+
+  if (separator < 0) {
+    return { verdict: unknowable(judge, DENY_REASONS.stdinScript) }
+  }
+
+  if (tokens.some(t => t.startsWith('::::'))) {
+    return { verdict: unknowable(judge, DENY_REASONS.scriptFile) }
+  }
+
+  const inputs = tokens.slice(separator).filter(t => !PARALLEL_SEPARATOR.test(t))
+  return { verdict: firstHit(inputs, input => scriptVerdict(input, 'parallel', judge, depth)) }
+}
+
+// ssh hands the words after the host to a shell on that host, which reaches the same remotes and registries.
+function ssh(tokens: string[], judge: Judge, depth: number): Next {
+  const afterHost = tokens.slice(skipOptions(tokens, 1, SSH_OPTS) + 1)
+  // ssh reads options again after the host (`ssh host -t cmd`, `ssh host -- cmd`).
+  const script = afterHost.slice(skipOptions(afterHost, 0, SSH_OPTS))
+  return script.length === 0 ? { verdict: null } : nestedScript(script.join(' '), 'ssh', judge, depth)
+}
+
+// util-linux takes the command as `-c script`; BSD and macOS take it as the words after the typescript file.
+function script(tokens: string[], judge: Judge, depth: number): Next {
+  const scripts = optionValues(tokens, ['-c', '--command'])
+
+  if (scripts.length > 0) {
+    return { verdict: firstHit(scripts, s => scriptVerdict(s, 'script', judge, depth)) }
+  }
+
+  return { tokens: tokens.slice(skipOptions(tokens, 1, SCRIPT_OPTS) + 1) }
+}
+
+// `su user -c script` hands the script to the user's shell; `runuser -u user command` runs the command itself.
+function switchUser(tokens: string[], exe: string, judge: Judge, depth: number): Next {
+  const scripts = optionValues(tokens, ['-c', '--command'])
+
+  if (scripts.length > 0) {
+    return { verdict: firstHit(scripts, s => scriptVerdict(s, exe, judge, depth)) }
+  }
+
+  return exe === 'runuser' ? { tokens: tokens.slice(skipOptions(tokens, 1, RUNUSER_OPTS)) } : { verdict: null }
+}
+
+// The action runs later, when the signal arrives or the shell exits, so only the strict reading counts it.
+function trap(tokens: string[], judge: Judge, depth: number): Next {
+  const at = tokens[1] === '--' ? 2 : 1
+  const action = tokens[at]
+
+  if (!judge.strict || action === undefined || action.startsWith('-') || tokens.length <= at + 1) {
+    return { verdict: null }
+  }
+
+  return nestedScript(action, 'trap', judge, depth)
+}
+
+// zsh expands aliases even in scripts, and the line after the definition can append any words to the value.
+function alias(tokens: string[], judge: Judge, depth: number): Next {
+  if (!judge.strict) {
+    return { verdict: null }
+  }
+
+  const values = tokens.slice(1).filter(t => t.includes('=')).map(t => `${t.slice(t.indexOf('=') + 1)} ${EXP}`)
+  return { verdict: firstHit(values, value => scriptVerdict(value, 'alias', judge, depth)) }
+}
+
+// A regular file is not followed, like any program that runs its own commands; stdin or a process substitution is a
+// script built on this very line.
+function source(tokens: string[], judge: Judge): Next {
+  const file = tokens[tokens[1] === '--' ? 2 : 1]
+  const fromStdin = file === undefined || STDIN_FILE.test(file)
+
+  return { verdict: fromStdin ? unknowable(judge, DENY_REASONS.stdinScript) : null }
+}
+
+// Where the value starts when the option carries it in its own word: `--eval=code`, `-c=code` or `-c'code'`. A short
+// option followed by plain letters is a cluster, whose value is the next word.
+function attachedAt(t: string, name: string): number {
+  if (t.startsWith(`${name}=`)) {
+    return name.length + 1
+  }
+
+  return !name.startsWith('--') && t.startsWith(name) && !/^-[a-z]+$/i.test(t) ? name.length : -1
+}
+
+// The values of the options that carry a program or script: `-c code`, a cluster ending in it (`-Ic code`,
+// `-le code`), `--eval code` and `--eval=code`.
+function optionValues(tokens: string[], names: readonly string[]): string[] {
+  const values: string[] = []
+
+  for (let i = 1; i < tokens.length; i++) {
+    const t = tokens[i] ?? ''
+    const name = names.find(n =>
+      n.startsWith('--')
+        ? t === n || t.startsWith(`${n}=`)
+        : t === n || (/^-[a-z]+$/i.test(t) ? t.endsWith(n.charAt(1)) : t.startsWith(n)),
+    )
+
+    if (name === undefined) {
+      continue
+    }
+
+    const attached = attachedAt(t, name)
+    const value = attached < 0 ? tokens[++i] : t.slice(attached)
+
+    if (value !== undefined) {
+      values.push(value)
+    }
+  }
+
+  return values
+}
+
+function inlinePrograms(tokens: string[], exe: string): string[] {
+  if (!AWKS.has(exe)) {
+    return optionValues(tokens, INTERPRETERS[exe] ?? [])
+  }
+
+  const end = skipOptions(tokens, 1, AWK_OPTS)
+  const fromFile = tokens.slice(1, end).some(t => t.startsWith('-f') || isLongOption(t, '--file'))
+  const program = fromFile ? [] : tokens.slice(end, end + 1)
+
+  return [...optionValues(tokens.slice(0, end), ['-e', '--source']), ...program]
+}
+
+// An interpreter's program can run any command, and its quoting is not the shell's, so its words are searched for a
+// pattern wherever they stand.
+function wordsMatch(program: string, judge: Judge): string | null {
+  const words = program.split(/[\s"'`,;()[\]{}|&$=<>]+/).filter(Boolean)
+  const width = Math.max(0, ...judge.patterns.map(p => p.split(' ').length)) + 1
+  const certain = { ...judge, strict: false }
+
+  for (let i = 0; i < words.length; i++) {
+    const hit = match(words.slice(i, i + width), certain)
+
+    if (hit) {
+      return hit
+    }
+  }
+
+  return null
 }
 
 // `env -S "A=1 git push"` splits its string into words the way a shell would, though it expands only `${NAME}`.
@@ -331,7 +519,7 @@ function splitEnvString(tokens: string[]): string[] | null {
         return splitEnvWords(value, tokens.slice(t.includes('=') ? i + 1 : i + 2))
       }
 
-      i += ARG_OPTS.env.has(t) ? 1 : 0
+      i += t === '--unset' || t === '--chdir' ? 1 : 0
       continue
     }
 
@@ -379,23 +567,25 @@ function watch(tokens: string[], judge: Judge, depth: number): Next {
   return exec ? { tokens: tokens.slice(end) } : nestedScript(tokens.slice(end).join(' '), 'watch', judge, depth)
 }
 
-// `flock [options] lock command…` or `flock [options] lock -c script`; with a file descriptor alone it runs nothing.
+// `flock [options] lock command…`, `flock [options] lock -c script` or `flock -c script [options] lock`; with a file
+// descriptor alone it runs nothing.
 function flock(tokens: string[], judge: Judge, depth: number): Next {
-  const rest = tokens.slice(skipOptions(tokens, 1, FLOCK_OPTS) + 1)
+  const end = skipOptions(tokens, 1, FLOCK_OPTS)
+  const rest = tokens.slice(end + 1)
+  const trailing = rest[0]?.startsWith('-') ? optionValues(['flock', ...rest.slice(0, 2)], FLOCK_SCRIPT_OPTS) : []
+  const scripts = [...optionValues(tokens.slice(0, end), FLOCK_SCRIPT_OPTS), ...trailing]
 
-  if (rest[0] !== '-c' && rest[0] !== '--command') {
-    return { tokens: rest }
-  }
-
-  return rest[1] === undefined ? { verdict: null } : nestedScript(rest[1], 'flock', judge, depth)
+  return scripts.length > 0
+    ? { verdict: firstHit(scripts, script => scriptVerdict(script, 'flock', judge, depth)) }
+    : { tokens: rest }
 }
 
 // Each `-exec cmd … ;` runs a command; `+` ends one only right after `{}`.
-function findCommands(tokens: string[]): string[][] {
+function execCommands(tokens: string[], exec: ReadonlySet<string>): string[][] {
   const commands: string[][] = []
 
   for (let i = 1; i < tokens.length; i++) {
-    if (!FIND_EXEC.has(tokens[i] ?? '')) {
+    if (!exec.has(tokens[i] ?? '')) {
       continue
     }
 
@@ -435,18 +625,53 @@ function shellScript(tokens: string[], exe: string, judge: Judge, depth: number)
 }
 
 // Git ignores an alias that shadows a real command, so the subcommand is matched before an alias is suspected.
-function git(tokens: string[], judge: Judge): Next {
-  if ((tokens[1] ?? '').startsWith('-')) {
-    const end = skipOptions(tokens, 1, ARG_OPTS.git)
+function git(tokens: string[], judge: Judge, depth: number): Next {
+  const subcommand = tokens[1] ?? ''
 
-    if (definesGitAlias(tokens.slice(1, end))) {
+  if (subcommand.startsWith('-')) {
+    const end = skipOptions(tokens, 1, GIT_OPTS)
+    const globals = tokens.slice(1, end)
+
+    if (definesGitAlias(globals)) {
       return { verdict: unknowable(judge, DENY_REASONS.gitAlias) }
     }
 
-    return { tokens: ['git', ...tokens.slice(end)] }
+    // A pager, editor, ssh command or helper set with `-c` is run by git; any other value read as a script is harmless.
+    const values = judge.strict ? configValues(globals) : []
+    const hit = firstHit(values, v => scriptVerdict(v.replace(/^!/, ''), 'git', judge, depth))
+
+    return hit ? { verdict: hit } : { tokens: ['git', ...tokens.slice(end)] }
   }
 
-  return { verdict: judge.gitAliasEnv ? unknowable(judge, DENY_REASONS.gitAlias) : null }
+  if (subcommand === 'config' && tokens.some(t => /^alias\./i.test(t))) {
+    return { verdict: unknowable(judge, DENY_REASONS.gitAlias) }
+  }
+
+  if (subcommand === 'bisect' && tokens[2] === 'run') {
+    return { tokens: tokens.slice(3) }
+  }
+
+  const hit = firstHit(gitScripts(tokens), script => scriptVerdict(script, 'git', judge, depth))
+  return { verdict: hit ?? (judge.gitAliasEnv ? unknowable(judge, DENY_REASONS.gitAlias) : null) }
+}
+
+function configValues(globals: string[]): string[] {
+  return globals.flatMap((t, i) => {
+    const pair = globals[i - 1] === '-c' ? t : /^-c./.test(t) ? t.slice(2) : ''
+    return pair.includes('=') ? [pair.slice(pair.indexOf('=') + 1)] : []
+  })
+}
+
+// The shell commands a subcommand runs: `rebase -x`, `difftool -x`, the `filter-branch` filters, `submodule foreach`.
+function gitScripts(tokens: string[]): string[] {
+  const subcommand = tokens[1] ?? ''
+  const foreach = subcommand === 'submodule' ? tokens.indexOf('foreach') : -1
+
+  if (foreach > 0) {
+    return [tokens.slice(foreach + 1).filter(t => t !== '--recursive').join(' ')]
+  }
+
+  return Object.hasOwn(GIT_SCRIPT_OPTS, subcommand) ? optionValues(tokens, GIT_SCRIPT_OPTS[subcommand] ?? []) : []
 }
 
 // An alias can rename any subcommand, so what it runs cannot be known from the command line.
@@ -465,7 +690,8 @@ function definesGitAliasEnv(assignment: string): boolean {
 }
 
 // GNU rm takes its options anywhere before `--`, in any order and spelling, so `rm` is matched once more as
-// `rm -rf <operand>` for each operand. `$HOME` names the same directory as `~`.
+// `rm -rf <operand>` for each operand, as written and with `//`, `/./` and a trailing `/` or `/.` folded away.
+// `$HOME` names the same directory as `~`.
 function rmByFlags(tokens: string[], judge: Judge): string | null {
   let recursive = false
   let force = false
@@ -495,7 +721,41 @@ function rmByFlags(tokens: string[], judge: Judge): string | null {
     return null
   }
 
-  return operands.reduce<string | null>((hit, operand) => hit ?? match(['rm', `-${flags}`, operand], judge), null)
+  const spellings = operands.flatMap(operand => [operand, foldPath(operand), foldPath(resolveDots(operand))])
+  return firstHit(spellings, operand => match(['rm', `-${flags}`, operand], judge))
+}
+
+// `/tmp/..` and `~/docs/..` name `/` and `~`; a relative path has no known base, so it is left as written.
+function resolveDots(path: string): string {
+  const [root = '', ...segments] = path.split('/')
+
+  if (root !== '' && root !== '~') {
+    return path
+  }
+
+  const kept: string[] = []
+
+  for (const segment of segments) {
+    if (segment === '..') {
+      kept.pop()
+    }
+    else if (segment !== '' && segment !== '.') {
+      kept.push(segment)
+    }
+  }
+
+  return kept.length > 0 ? [root, ...kept].join('/') : root || '/'
+}
+
+function foldPath(path: string): string {
+  let folded = path.replace(/\/{2,}/g, '/').replace(/\/\.(?=\/)/g, '')
+
+  for (let prev = ''; prev !== folded;) {
+    prev = folded
+    folded = folded.replace(/(?<=.)\/$/, '').replace(/\/\.$/, '')
+  }
+
+  return folded || '/'
 }
 
 // A matcher blind to quoting: a comment, a here-document or $'…' can put the scanner out of step with the shell,
@@ -557,10 +817,11 @@ function judgeCommand(cmd: string, judge: Judge, depth: number): string | null {
  *
  * Each pattern is a word prefix (`'git push'`, `'rm -rf /'`) matched against every command the line could run:
  * each part of a pipeline or `&&`/`;` list, each `$(…)` and backquoted substitution, including those inside double
- * quotes and unquoted here-documents, each script given to `bash -c`/`sh -c`/`eval`, and each command behind a
- * wrapper such as `env` (and `env -S`), `sudo`, `nohup`, `timeout`, `nice`, `xargs`, `setsid`, `stdbuf`, `ionice`,
- * `flock`, `watch`, `find -exec`, `npx`, `pnpm exec`, `npm exec`, `yarn dlx`, `busybox` or `git -C dir`. `rm` is matched
- * by its flag set, so `rm -r -f /` matches `'rm -rf /'`.
+ * quotes and unquoted here-documents, each script given to `bash -c`/`sh -c`/`eval`/`ssh`/`trap`/`git rebase -x`,
+ * and each command behind a wrapper such as `env` (and `env -S`), `sudo`, `nohup`, `timeout`, `nice`, `xargs`,
+ * `parallel`, `flock`, `watch`, `find -exec`, `npx`, `pnpm exec`, `busybox` or `git -C dir`. `rm` is matched by its
+ * flag set, so `rm -r -f /` matches `'rm -rf /'`. The inline program of `python -c`, `node -e` and similar is
+ * searched for a pattern's words.
  *
  * @param cmd - The command line, as a shell would receive it.
  * @param deny - Word-prefix patterns to deny.

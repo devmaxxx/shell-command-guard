@@ -24,7 +24,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   command.
 - Fails closed on expansions in command position, brace and glob command words, unbalanced quoting, shells reading a
   script from stdin or a file, and `git -c alias.*` / `GIT_CONFIG_*` aliases.
-- Matches `rm` by flag set and operand, with `$HOME` read as `~`.
+- Matches `rm` by flag set and operand, with `$HOME` read as `~` and `//`, `/./` and a trailing `/` or `/.` folded.
+- Sees through `doas`, `su -c`, `run0`, `pkexec`, `runuser`, `chrt`, `taskset`, `caffeinate`, `arch`, `parallel`,
+  `script`, `strace`, `ltrace`, `nsenter`, `chroot`, `systemd-run`, `firejail`, `faketime`, `dbus-launch`,
+  `xvfb-run`, `unbuffer`, `toybox`, `fd -x`, `ssh host …`, `yarn exec`, `bun x`/`bun exec`, `coproc`, `function`, and
+  zsh's `=cmd`, `noglob`, `nocorrect`, `-` and `[[ … ]] cmd`.
+- Reads commands set up to run later: `trap` actions, `alias` values, `git rebase -x`, `git difftool -x`,
+  `git bisect run`, `git submodule foreach`, `git filter-branch` filters and `git -c` values; denies
+  `git config alias.*`.
+- Counts the words `xargs` and `parallel` add to a command, and its replace-string, as expansions.
+- Fails closed on `source` of stdin or a process substitution, and on a line nested deeper than the stack instead of
+  throwing a `RangeError`.
+- Searches the inline program of `python -c`, `node -e`, `perl -e`, `ruby -e`, `php -r`, `osascript -e`, `awk` and
+  similar for a pattern's words.
+- `DEFAULT_DENY` also holds `pkexec`, `run0` and `rm -rf ~/*`.
+- Reads attached option values (`-c'code'`), options after `ssh`'s host, GNU `time -f`, `env -a`/`-P`, `..` in `rm`
+  operands, versioned interpreters (`python3.12`), and `gtimeout`, `fakeroot`, `unshare` and `sandbox-exec`.
 - Zero runtime dependencies, ESM only, TypeScript declarations, Node 20+.
 
 [0.1.0]: https://github.com/devmaxxx/shell-command-guard/releases/tag/v0.1.0

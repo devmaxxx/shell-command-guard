@@ -292,3 +292,194 @@ describe('a git alias defined through the environment', () => {
     expect(deniedBy('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat git log', ['git push'])).toBeNull()
   })
 })
+
+describe('wrappers and precommand modifiers beyond the common ones', () => {
+  it.each([
+    'chrt 10 git push',
+    'chrt -T 5 10 git push',
+    'taskset 1 git push',
+    'taskset -c 0-3 git push',
+    'caffeinate -i git push',
+    'caffeinate -t 60 git push',
+    'arch -arm64 git push',
+    'arch -arch x86_64 git push',
+    'unbuffer git push',
+    'strace -f -o log git push',
+    'ltrace git push',
+    'nsenter -t 1 -m git push',
+    'chroot / git push',
+    'pkexec git push',
+    'run0 -u ci git push',
+    'runuser -u ci git push',
+    'systemd-run --user -p X=1 git push',
+    'toybox git push',
+    'firejail --quiet git push',
+    'faketime "2020-01-01" git push',
+    'dbus-launch git push',
+    'xvfb-run -a git push',
+    'doas -u ci git push',
+    'coproc git push',
+    'coproc p { git push; }',
+    'function f { git push; }',
+    'script -q /dev/null git push',
+    'script -c "git push" /dev/null',
+    'su ci -c "git push"',
+    'ssh host git push',
+    'ssh -p 22 host "cd repo && git push"',
+    'fd -x git push',
+    'git bisect run git push',
+    'git rebase -x "git push" main',
+    'git rebase --exec="git push" main',
+    'git submodule foreach "git push"',
+    'git submodule --quiet foreach --recursive git push',
+    'git filter-branch --tree-filter "git push" HEAD',
+    'parallel git push ::: a',
+    'yarn exec "echo; git push"',
+    'bun exec "git push"',
+    'bun x git push',
+  ])('denies and runs git push: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBe('git push')
+    expect(runsCommand(cmd, 'git push')).toBe(true)
+  })
+
+  it.each(['=git push', 'noglob git push', 'nocorrect git push', '- git push', '[[ -n x ]] git push'])(
+    'denies a zsh-only form that bash would not run: %j',
+    (cmd) => {
+      expect(deniedBy(cmd, ['git push'])).toBe('git push')
+      expect(runsCommand(cmd, 'git push')).toBe(false)
+    },
+  )
+
+  it.each([
+    'git -c core.pager="git push" log',
+    'git -c core.sshCommand="sh -c \'git push\'" fetch',
+    'git -ccore.editor=\'!git push\' commit',
+    'trap "git push" EXIT',
+    'trap -- "git push" INT TERM',
+    'alias g=\'git push\'\ng',
+    'alias g=git\ng push',
+    'parallel ::: "git push"',
+  ])('denies a command set up now and run later: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBe('git push')
+  })
+
+  it.each(['git config alias.p \'!git push\'', 'git config --global alias.p push'])('denies a stored git alias: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBe(DENY_REASONS.gitAlias)
+  })
+
+  it.each(['source <(echo git push)', '. /dev/stdin <<< "git push"', 'parallel', 'echo "git push" | parallel'])(
+    'fails closed on a script read from stdin: %j',
+    (cmd) => {
+      expect(deniedBy(cmd, ['git push'])).toBe(DENY_REASONS.stdinScript)
+    },
+  )
+
+  it('fails closed on commands parallel reads from a file', () => {
+    expect(deniedBy('parallel :::: jobs.txt', ['git push'])).toBe(DENY_REASONS.scriptFile)
+  })
+
+  it.each(['echo push | xargs git', 'echo "git push" | xargs -I{} sh -c {}', 'xargs -I % % push', 'xargs -iX X push'])(
+    'counts the words xargs adds: %j',
+    (cmd) => {
+      expect(deniedBy(cmd, ['git push'])).not.toBeNull()
+      expect(runsCommand(cmd, 'git push')).toBe(false)
+    },
+  )
+
+  it.each([
+    'python3 -c \'import os; os.system("git push")\'',
+    'python -Ic \'import subprocess; subprocess.run(["git", "push"])\'',
+    'node -e \'require("child_process").execSync("git push")\'',
+    'perl -le \'system q(git push)\'',
+    'ruby -e \'`git push`\'',
+    'osascript -e \'do shell script "git push"\'',
+    'awk \'BEGIN { system("git push") }\'',
+    'gawk -e \'BEGIN { system("git push") }\'',
+  ])('denies a pattern named in an interpreter\'s inline program: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBe('git push')
+    expect(runsCommand(cmd, 'git push')).toBe(false)
+  })
+
+  it.each([
+    'source .venv/bin/activate && pytest',
+    '. ~/.nvm/nvm.sh && nvm use',
+    'git ls-files | xargs wc -l',
+    'python3 -c "print(1 + 1)"',
+    'awk \'{ print $1 }\' file',
+    'awk -f prog.awk file',
+    'git rebase -i main',
+    'git -c color.ui=always log',
+    'git config user.name x',
+    'ssh host uptime',
+    'parallel echo ::: a b',
+    'trap "rm -f $tmp" EXIT',
+    'trap - EXIT',
+    'alias ll=\'ls -la\'',
+    'git submodule foreach git pull',
+    'fd -e ts -x wc -l',
+    'script -q /dev/null ls',
+    'yarn exec tsc',
+    'su -',
+  ])('allows %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBeNull()
+  })
+
+  it('takes `command -pv` for a lookup', () => {
+    expect(runsCommand('command -pv git', 'git')).toBe(false)
+  })
+})
+
+describe('a line nested deeper than the stack', () => {
+  it.each([['$(', 20_000], ['"$(', 20_000], ['${', 20_000], ['`$(', 5_000]] as const)(
+    'fails closed instead of throwing on %j repeated %i times',
+    (open, times) => {
+      const cmd = open.repeat(times)
+      expect(() => deniedBy(cmd, ['git push'])).not.toThrow()
+      expect(deniedBy(cmd, ['git push'])).toBe(DENY_REASONS.unbalanced)
+      expect(runsCommand(cmd, 'git push')).toBe(false)
+      expect(() => commandSegments(cmd)).not.toThrow()
+    },
+  )
+})
+
+describe('options that take a value are skipped before the wrapped command', () => {
+  it.each([
+    '/usr/bin/time -f %e git push',
+    'time -o out git push',
+    'env -P /usr/bin git push',
+    'env -a name git push',
+    'env --argv0 name git push',
+    'gtimeout 5 git push',
+    'fakeroot git push',
+    'unshare -r git push',
+    'sandbox-exec -p "(version 1)" git push',
+    'systemd-run --service-type notify git push',
+    'parallel --halt now,fail=1 git push ::: a',
+    'parallel --header : git push ::: a',
+    'parallel --tagstring x git push ::: a',
+    'npx --registry https://registry.example git push',
+    'xargs -tI{} git push {}',
+    'xargs -0I@ git @',
+    'flock -c "git push" /tmp/lock',
+    'flock -n --command "git push" /tmp/lock',
+    'flock /tmp/lock --command="git push"',
+    'ssh host -t git push',
+    'ssh host -- git push',
+    'eval -- git push',
+  ])('denies git push: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).not.toBeNull()
+  })
+
+  it.each([
+    'python -c\'import os; os.system("git push")\'',
+    'python3.12 -c \'import os; os.system("git push")\'',
+    'perl -e\'system("git push")\'',
+    'git rebase -x\'git push\' main',
+  ])('reads a program given in the same word as its option: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBe('git push')
+  })
+
+  it.each(['flock /tmp/lock git status', 'flock -n 9', 'ssh host ls -l', 'xargs -n 1 echo'])('allows %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBeNull()
+  })
+})

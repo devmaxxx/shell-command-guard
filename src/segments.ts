@@ -22,7 +22,9 @@ export function read(cmd: string, mode: Mode): { segments: string[], complete: b
     new Reader(cmd, mode, 0, found).commands(0, false)
   }
   catch (e) {
-    if (!(e instanceof Unreadable)) {
+    // A line nested deeper than the stack allows cannot be read either, and a throw would let a caller that fails
+    // open run it.
+    if (!(e instanceof Unreadable || e instanceof RangeError)) {
       throw e
     }
 

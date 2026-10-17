@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { commandSegments, DEFAULT_DENY, deniedBy, effectiveDeny } from '../src'
 
 // The behaviour below is pinned against a fixed list, so changing DEFAULT_DENY cannot change what these cases mean.
@@ -325,3 +325,25 @@ it.each(['${x#y} \\git push', '${x#y}\\git push', '! \\r ; ${x% } \\git push #c 
     expect(deniedBy(cmd, DENY)).toBe('command word comes from an expansion')
   },
 )
+
+describe('rm operands are folded before matching', () => {
+  it.each([
+    ['rm -rf //', 'rm -rf /'],
+    ['rm -rf /./', 'rm -rf /'],
+    ['rm -rf /.', 'rm -rf /'],
+    ['rm -rf //*', 'rm -rf /*'],
+    ['rm -rf ~/.', 'rm -rf ~'],
+    ['rm -rf ~//', 'rm -rf ~'],
+    ['rm -rf ~/*', 'rm -rf ~/*'],
+    ['rm -rf ~/', 'rm -rf ~/'],
+    ['rm -rf /tmp/..', 'rm -rf /'],
+    ['rm -rf /usr/../', 'rm -rf /'],
+    ['rm -rf ~/docs/..', 'rm -rf ~'],
+  ])('denies %j', (cmd, pattern) => {
+    expect(deniedBy(cmd, DEFAULT_DENY)).toBe(pattern)
+  })
+
+  it.each(['rm -rf ./dist', 'rm -rf ~/tmp/x', 'rm -rf /tmp/build', 'rm -rf /tmp/a/../b'])('allows %j', (cmd) => {
+    expect(deniedBy(cmd, DEFAULT_DENY)).toBeNull()
+  })
+})
