@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "packageManager": "pnpm@10.23.0",
   "description": "Tell whether a shell command really runs a program — a fail-closed deny-list that sees through quotes, here-documents, $(…), bash -c, env, sudo and xargs",
-  "author": "arenuzzz",
+  "author": "Maksym Synenko",
   "license": "MIT",
   "homepage": "https://github.com/devmaxxx/shell-command-guard#readme",
   "repository": {
