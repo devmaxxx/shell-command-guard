@@ -5,7 +5,8 @@ Tell whether a shell command line runs a given program, the way bash would read 
 A naive `cmd.includes('git push')` blocks `grep "git push" notes.md` and misses `sudo env A=1 git push`. This library
 parses the line: it treats quoted strings, comments and quoted here-document bodies as data, and it follows the
 commands inside pipelines, `&&`/`;` lists, subshells, `$(…)`, backquotes, unquoted here-documents, `bash -c`, `eval`,
-and wrappers such as `env`, `sudo`, `nohup`, `timeout`, `nice`, `xargs`, `npx`, `pnpm exec` and `git -C dir`.
+and wrappers such as `env` (with `-S`), `sudo`, `nohup`, `timeout`, `nice`, `xargs`, `setsid`, `stdbuf`, `ionice`,
+`flock`, `watch`, `find -exec`, `busybox`, `npx`, `pnpm exec`, `npm exec`, `yarn dlx` and `git -C dir`.
 
 It suits pre-execution hooks for coding agents, CI bots and chat-ops tools: deny `git push`, or apply a commit-message
 check only when the command really runs `git commit`.
@@ -43,9 +44,11 @@ pattern matched, or `null` when the command may run.
 
 | Reason | When |
 | --- | --- |
-| `command word comes from an expansion` | the program name is `$VAR`, `$(…)` or similar |
+| `command word comes from an expansion` | the program name is `$VAR`, `$(…)`, a glob (`/usr/bin/g*`) or similar |
 | `unbalanced quoting` | a quote, `$(…)` or here-document never closes |
-| `git -c alias.*` | a git alias defined on the command line could run any subcommand |
+| `git -c alias.*` | a git alias defined with `-c`, `GIT_CONFIG_KEY_n` or `GIT_CONFIG_PARAMETERS` could run anything |
+| `shell reads script from stdin` | a shell runs without `-c` and without a script file (`echo … \| sh`, `bash -s`) |
+| `shell runs a script file` | a shell runs a script file (`bash deploy.sh`) this reading cannot see |
 
 An argument an expansion could complete into a denied command is denied too (`git $SUB` under `'git push'`). The line is
 also read the way bash 3.2, zsh and sh would read it, and split once more without regard to quoting, so a command any
@@ -85,6 +88,9 @@ Leading `NAME=value` assignments are dropped, expansions are removed, and whites
 (`rm -rf /`, `rm -rf ~`, `mkfs`, `dd`), powering off (`shutdown`, `reboot`, `halt`, `poweroff`), and publishing beyond
 the local checkout (`git push`, `git reset --hard`, `git clean`, `npm publish`, `pnpm publish`, `yarn publish`).
 
+`rm` is matched by its flag set rather than its spelling: `rm -Rf /`, `rm -r -f /`, `rm -rfv --no-preserve-root /` and
+`rm / -rf` all match `'rm -rf /'`, each operand is tried, and `$HOME` counts as `~`.
+
 ```ts
 import { deniedBy, effectiveDeny } from 'shell-command-guard'
 
@@ -103,17 +109,18 @@ deniedBy('kubectl delete pod web', deny) // 'kubectl delete'
 | `commandSegments` | `(cmd: string) => string[]` |
 | `effectiveDeny` | `(policy: DenyPolicy, extra?: readonly string[]) => string[]` |
 | `DEFAULT_DENY` | `readonly string[]` |
-| `DENY_REASONS` | `{ expansion, unbalanced, gitAlias }` |
+| `DENY_REASONS` | `{ expansion, unbalanced, gitAlias, stdinScript, scriptFile }` |
 | `DenyPolicy` | `{ deny: readonly string[] }` |
 
 ## What it is not
 
 - **Not a sandbox.** It reads a command line before it runs; it does not stop a program from doing anything once it
-  runs. A script file (`bash deploy.sh`), a Makefile target, a package script (`npm run release`), an alias or a
-  function defined earlier in the session can all run a denied command that never appears on the line.
-- **A best-effort deny-list.** Matching is by word prefix, so `rm -rf /` does not match `rm -r -f /` or
-  `rm -rf /home`. Deny the program (`rm`) when every spelling matters, and allow-list instead of deny-list when the
-  stakes are high.
+  runs. `deniedBy` refuses a shell given a script file or stdin, but a Makefile target, a package script
+  (`npm run release`), a program that runs its own commands, an alias or a function defined earlier in the session can
+  all run a denied command that never appears on the line.
+- **A best-effort deny-list.** Matching is by word prefix, so `rm -rf /` does not match `rm -rf /home`, and only `rm`
+  is matched by flag set: `'git clean -fd'` does not match `git clean -df`. Deny the program or subcommand
+  (`git clean`) when every spelling matters, and allow-list instead of deny-list when the stakes are high.
 - **Not a full shell parser.** It models bash, with zsh, sh and bash 3.2 differences where they change which commands
   run. Constructs it cannot place, it reports as unreadable rather than guessing.
 

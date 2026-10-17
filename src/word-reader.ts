@@ -4,6 +4,9 @@ export class Unreadable extends Error {}
 // Marks where an expansion stood in a segment: what it expands to is known only when the shell runs.
 export const EXP = '\u0000'
 
+// Marks an unquoted `*`, `?` or `[…]`: in the command word it is an expansion, elsewhere the matcher reads it as text.
+export const GLOB = '\u0001'
+
 // The quotes, escapes and expansions inside a word. Substitutions hold whole command lists, so the reader that scans
 // those supplies them.
 export abstract class WordReader {

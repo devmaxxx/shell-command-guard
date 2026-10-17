@@ -1,5 +1,5 @@
 import type { Doc, Found, Mode } from './types'
-import { Unreadable, WordReader } from './word-reader'
+import { EXP, Unreadable, WordReader } from './word-reader'
 
 const KEYWORD = String.raw`(?:!|\{|if|then|do|else|elif|while|until|time)[ \t]+`
 // `((` starts arithmetic, and `case` a pattern list, only where a command starts.
@@ -8,6 +8,8 @@ const CASE_START = new RegExp(String.raw`^[ \t]*(?:${KEYWORD})*case[ \t]`)
 // bash reads `name[` as an array subscript only where an assignment may stand.
 const ASSIGNMENT_START = new RegExp(String.raw`^[ \t]*(?:${KEYWORD}|[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=[^\s'"\\$]*[ \t]+)*$`)
 
+// The delimiter is any shell word, ended by a blank or an operator, and loses its quotes. Shells disagree on a `$` or
+// a backquote in it, so this reading stops there.
 function heredocAt(s: string, i: number): { end: number, doc: Doc } {
   let j = i + 2
   const strip = s[j] === '-'
@@ -20,16 +22,76 @@ function heredocAt(s: string, i: number): { end: number, doc: Doc } {
     j++
   }
 
-  const m = /^(?:([A-Z_]\w*)|'([A-Z_]\w*)'|"([A-Z_]\w*)")(?=[ \t\n;&|)]|$)/i.exec(s.slice(j))
+  const start = j
+  let delim = ''
+  let quoted = false
 
-  const delim = m?.[1] ?? m?.[2] ?? m?.[3]
+  while (j < s.length && !/[ \t\n;&|()<>]/.test(s.charAt(j))) {
+    const c = s.charAt(j)
 
-  // One of the three alternatives matched, so a missing delimiter is as unreadable as a missing match.
-  if (!m || delim === undefined) {
+    if (c === '$' || c === '`' || (c === '\\' && j + 1 >= s.length)) {
+      throw new Unreadable()
+    }
+
+    if (c === '\\' || c === '\'' || c === '"') {
+      quoted = true
+    }
+
+    if (c === '\\') {
+      delim += s[j + 1]
+      j += 2
+    }
+    else if (c === '\'') {
+      const end = s.indexOf('\'', j + 1)
+
+      if (end < 0) {
+        throw new Unreadable()
+      }
+
+      delim += s.slice(j + 1, end)
+      j = end + 1
+    }
+    else if (c === '"') {
+      const [end, text] = doubleQuotedDelim(s, j + 1)
+      delim += text
+      j = end
+    }
+    else {
+      delim += c
+      j++
+    }
+  }
+
+  if (j === start) {
     throw new Unreadable()
   }
 
-  return { end: j + m[0].length, doc: { delim, strip, quoted: m[1] === undefined } }
+  return { end: j, doc: { delim, strip, quoted } }
+}
+
+// Inside double quotes a backslash escapes only `$`, a backquote, `"`, a backslash or a newline.
+function doubleQuotedDelim(s: string, from: number): [number, string] {
+  let text = ''
+
+  for (let j = from; j < s.length; j++) {
+    const c = s.charAt(j)
+
+    if (c === '"') {
+      return [j + 1, text]
+    }
+
+    if (c === '$' || c === '`') {
+      throw new Unreadable()
+    }
+
+    if (c === '\\' && '$`"\\\n'.includes(s[j + 1] ?? 'x')) {
+      j++
+    }
+
+    text += s[j] ?? ''
+  }
+
+  throw new Unreadable()
 }
 
 // The state one command list's scan carries from character to character.
@@ -166,6 +228,16 @@ export class Reader extends WordReader {
       scan.i = end
       scan.atWord = false
     }
+    else if (
+      c === '('
+      && !scan.atWord
+      && /^[A-Z_]\w*\+?=$/i.test(scan.cur.slice(scan.word))
+      && ASSIGNMENT_START.test(scan.cur.slice(0, scan.word))
+    ) {
+      // `a=(git push)` assigns words; only the substitutions inside it run.
+      scan.i = this.arrayList(scan.i + 1)
+      scan.cur += EXP
+    }
     else if (c === '(' || c === ')') {
       scan.parens = Math.max(0, scan.parens + (c === '(' ? 1 : -1))
       this.flush(scan, scan.i + 1)
@@ -199,6 +271,34 @@ export class Reader extends WordReader {
       scan.cur += p ? p[1] : c
       scan.i = p ? p[0] : scan.i + 1
     }
+  }
+
+  // A compound array assignment ends at its `)`; an operator inside it is a syntax error the shells report differently.
+  arrayList(i: number): number {
+    const s = this.s
+
+    for (let j = i; j < s.length;) {
+      const c = s.charAt(j)
+
+      if (c === ')') {
+        return j + 1
+      }
+
+      if ('(;&|<>'.includes(c)) {
+        throw new Unreadable()
+      }
+
+      if (c === '#' && this.mode.comments && /[ \t\n(]/.test(s[j - 1] ?? '')) {
+        const nl = s.indexOf('\n', j)
+        j = nl < 0 ? s.length : nl
+        continue
+      }
+
+      const p = this.part(j, false)
+      j = p ? p[0] : j + 1
+    }
+
+    throw new Unreadable()
   }
 
   // Each body runs to the line equal to its delimiter. In an unquoted body a line ending in a backslash joins the next first.

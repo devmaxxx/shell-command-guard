@@ -1,6 +1,6 @@
 import type { Found, Mode } from './types'
 import { Reader } from './shell-reader'
-import { EXP, Unreadable } from './word-reader'
+import { EXP, GLOB, Unreadable } from './word-reader'
 
 // A quoted or escaped value may hold blanks, so the leading assignments are matched as shell words, not as `\S*`.
 const ASSIGNMENT_VALUE = String.raw`(?:[^\s'"\\]|\\[\s\S]|'[^']*'|"(?:[^"\\]|\\[\s\S])*")*`
@@ -57,6 +57,8 @@ export function commandSegments(cmd: string): string[] {
 }
 
 const BRACE_EXPANSION = /^\{[^\s,]*,\S*\}|^\{[^\s,.]*\.\.\S*\}/
+// A lone `[` is the test command; only a bracket closed within the word is a pattern.
+const GLOB_START = /^(?:[*?]|\[\S+\])/
 
 export function tokenize(seg: string): string[] {
   const tokens: string[] = []
@@ -106,6 +108,9 @@ export function tokenize(seg: string): string[] {
     else if (c === '{' && BRACE_EXPANSION.test(seg.slice(i))) {
       // `{git,push}` and `pu{s,}h` become other words before the command runs, like any expansion.
       cur = (cur ?? '') + EXP + c
+    }
+    else if (GLOB_START.test(seg.slice(i))) {
+      cur = (cur ?? '') + GLOB + c
     }
     else if (/\s/.test(c)) {
       end()
