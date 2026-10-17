@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="494" viewBox="0 0 760 494" role="img" aria-label="shell-command-guard demo: deniedBy allows commands that only mention git push and denies the ones that run it through env, bash -c, xargs, quoting, a stdin shell or python">
+<style>
+text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:14px}
+.fade{animation:fade 23.43s infinite}
+@keyframes fade{0%,98.292%{opacity:1}100%{opacity:0}}
+.c0{animation:c0 23.43s infinite}
+@keyframes c0{0%,2.561%{transform:translateX(0);animation-timing-function:steps(24,end)}6.147%,100%{transform:translateX(210.0px)}}
+.v0,.p0{animation:v0 23.43s infinite;animation-timing-function:step-end}
+.p0{animation-name:p0}
+@keyframes v0{0%,7.641%{opacity:0}7.646%,100%{opacity:1}}
+@keyframes p0{0%,2.561%{opacity:0}2.566%,100%{opacity:1}}
+.c1{animation:c1 23.43s infinite}
+@keyframes c1{0%,11.483%{transform:translateX(0);animation-timing-function:steps(30,end)}15.966%,100%{transform:translateX(260.4px)}}
+.v1,.p1{animation:v1 23.43s infinite;animation-timing-function:step-end}
+.p1{animation-name:p1}
+@keyframes v1{0%,17.460%{opacity:0}17.464%,100%{opacity:1}}
+@keyframes p1{0%,11.483%{opacity:0}11.488%,100%{opacity:1}}
+.c2{animation:c2 23.43s infinite}
+@keyframes c2{0%,21.302%{transform:translateX(0);animation-timing-function:steps(31,end)}25.934%,100%{transform:translateX(268.8px)}}
+.v2,.p2{animation:v2 23.43s infinite;animation-timing-function:step-end}
+.p2{animation-name:p2}
+@keyframes v2{0%,27.428%{opacity:0}27.432%,100%{opacity:1}}
+@keyframes p2{0%,21.302%{opacity:0}21.306%,100%{opacity:1}}
+.c3{animation:c3 23.43s infinite}
+@keyframes c3{0%,31.270%{transform:translateX(0);animation-timing-function:steps(28,end)}35.454%,100%{transform:translateX(243.6px)}}
+.v3,.p3{animation:v3 23.43s infinite;animation-timing-function:step-end}
+.p3{animation-name:p3}
+@keyframes v3{0%,36.948%{opacity:0}36.952%,100%{opacity:1}}
+@keyframes p3{0%,31.270%{opacity:0}31.274%,100%{opacity:1}}
+.c4{animation:c4 23.43s infinite}
+@keyframes c4{0%,40.790%{transform:translateX(0);animation-timing-function:steps(18,end)}43.479%,100%{transform:translateX(159.6px)}}
+.v4,.p4{animation:v4 23.43s infinite;animation-timing-function:step-end}
+.p4{animation-name:p4}
+@keyframes v4{0%,44.973%{opacity:0}44.978%,100%{opacity:1}}
+@keyframes p4{0%,40.790%{opacity:0}40.794%,100%{opacity:1}}
+.c5{animation:c5 23.43s infinite}
+@keyframes c5{0%,48.815%{transform:translateX(0);animation-timing-function:steps(20,end)}51.804%,100%{transform:translateX(176.4px)}}
+.v5,.p5{animation:v5 23.43s infinite;animation-timing-function:step-end}
+.p5{animation-name:p5}
+@keyframes v5{0%,53.298%{opacity:0}53.302%,100%{opacity:1}}
+@keyframes p5{0%,48.815%{opacity:0}48.820%,100%{opacity:1}}
+.c6{animation:c6 23.43s infinite}
+@keyframes c6{0%,57.140%{transform:translateX(0);animation-timing-function:steps(45,end)}63.863%,100%{transform:translateX(386.4px)}}
+.v6,.p6{animation:v6 23.43s infinite;animation-timing-function:step-end}
+.p6{animation-name:p6}
+@keyframes v6{0%,65.358%{opacity:0}65.362%,100%{opacity:1}}
+@keyframes p6{0%,57.140%{opacity:0}57.144%,100%{opacity:1}}
+.c7{animation:c7 23.43s infinite}
+@keyframes c7{0%,69.200%{transform:translateX(0);animation-timing-function:steps(10,end)}70.694%,100%{transform:translateX(92.4px)}}
+.v7,.p7{animation:v7 23.43s infinite;animation-timing-function:step-end}
+.p7{animation-name:p7}
+@keyframes v7{0%,72.188%{opacity:0}72.192%,100%{opacity:1}}
+@keyframes p7{0%,69.200%{opacity:0}69.204%,100%{opacity:1}}
+.c8{animation:c8 23.43s infinite}
+@keyframes c8{0%,76.030%{transform:translateX(0);animation-timing-function:steps(39,end)}81.857%,100%{transform:translateX(336.0px)}}
+.v8,.p8{animation:v8 23.43s infinite;animation-timing-function:step-end}
+.p8{animation-name:p8}
+@keyframes v8{0%,83.351%{opacity:0}83.355%,100%{opacity:1}}
+@keyframes p8{0%,76.030%{opacity:0}76.034%,100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}[class^="c"]{display:none}}
+</style>
+<rect x="0.5" y="0.5" width="759" height="493" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0.5 36 V10.5 a10 10 0 0 1 10 -10 H749.5 a10 10 0 0 1 10 10 V36 Z" fill="#161b22"/>
+<circle cx="20" cy="18" r="6" fill="#ff5f57"/><circle cx="40" cy="18" r="6" fill="#febc2e"/><circle cx="60" cy="18" r="6" fill="#28c840"/>
+<text x="380" y="23" fill="#7d8590" text-anchor="middle">shell-command-guard</text>
+<g class="fade">
+<text x="20" y="58" fill="#7d8590">// deniedBy(cmd, DEFAULT_DENY) for each line</text>
+<text class="p0" x="20" y="87" fill="#58a6ff">❯</text>
+<text x="36.8" y="87" fill="#e6edf3" xml:space="preserve">grep &quot;git push&quot; notes.md</text>
+<rect class="c0" x="35.8" y="69" width="210.0" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v0" x="36.8" y="109" xml:space="preserve"><tspan fill="#3fb950">✓ allowed</tspan></text>
+<text class="p1" x="20" y="131" fill="#58a6ff">❯</text>
+<text x="36.8" y="131" fill="#e6edf3" xml:space="preserve">env FOO=1 git push origin main</text>
+<rect class="c1" x="35.8" y="113" width="260.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v1" x="36.8" y="153" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
+<text class="p2" x="20" y="175" fill="#58a6ff">❯</text>
+<text x="36.8" y="175" fill="#e6edf3" xml:space="preserve">bash -c &quot;pnpm test &amp;&amp; git push&quot;</text>
+<rect class="c2" x="35.8" y="157" width="268.8" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v2" x="36.8" y="197" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
+<text class="p3" x="20" y="219" fill="#58a6ff">❯</text>
+<text x="36.8" y="219" fill="#e6edf3" xml:space="preserve">echo origin | xargs git push</text>
+<rect class="c3" x="35.8" y="201" width="243.6" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v3" x="36.8" y="241" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
+<text class="p4" x="20" y="263" fill="#58a6ff">❯</text>
+<text x="36.8" y="263" fill="#e6edf3" xml:space="preserve">g'i't push --force</text>
+<rect class="c4" x="35.8" y="245" width="159.6" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v4" x="36.8" y="285" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
+<text class="p5" x="20" y="307" fill="#58a6ff">❯</text>
+<text x="36.8" y="307" fill="#e6edf3" xml:space="preserve">echo 'git push' | sh</text>
+<rect class="c5" x="35.8" y="289" width="176.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v5" x="36.8" y="329" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;shell reads script from stdin&quot;</tspan></text>
+<text class="p6" x="20" y="351" fill="#58a6ff">❯</text>
+<text x="36.8" y="351" fill="#e6edf3" xml:space="preserve">python3 -c &quot;import os; os.system('git push')&quot;</text>
+<rect class="c6" x="35.8" y="333" width="386.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v6" x="36.8" y="373" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
+<text class="p7" x="20" y="395" fill="#58a6ff">❯</text>
+<text x="36.8" y="395" fill="#e6edf3" xml:space="preserve">rm -r -f /</text>
+<rect class="c7" x="35.8" y="377" width="92.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v7" x="36.8" y="417" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;rm -rf /&quot;</tspan></text>
+<text class="p8" x="20" y="439" fill="#58a6ff">❯</text>
+<text x="36.8" y="439" fill="#e6edf3" xml:space="preserve">pnpm test &amp;&amp; git commit -m &quot;push later&quot;</text>
+<rect class="c8" x="35.8" y="421" width="336.0" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text class="v8" x="36.8" y="461" xml:space="preserve"><tspan fill="#3fb950">✓ allowed</tspan></text>
+</g>
+</svg>

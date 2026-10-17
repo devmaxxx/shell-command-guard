@@ -50,6 +50,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc",
+    "demo": "unrun scripts/demo.ts",
     "test": "vitest run",
     "prepublishOnly": "pnpm build"
   },

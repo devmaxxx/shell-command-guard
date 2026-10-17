@@ -17,6 +17,8 @@ Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed �
 [Install](#install) · [Quick start](#quick-start) · [API](#api) · [Recipes](#recipes) · [FAQ](#faq) ·
 [Security model](#security-model-and-limits)
 
+<img src="./assets/demo.svg" width="760" alt="Terminal demo: deniedBy allows grep &quot;git push&quot; notes.md but denies git push hidden behind env, bash -c, xargs, quoting, a stdin shell and python -c, and denies rm -r -f /">
+
 </div>
 
 <details>
@@ -387,6 +389,7 @@ pnpm test       # vitest
 pnpm lint       # eslint
 pnpm typecheck  # tsc
 pnpm build      # tsdown
+pnpm demo       # regenerate assets/demo.svg from the real deniedBy output
 ```
 
 ## License
