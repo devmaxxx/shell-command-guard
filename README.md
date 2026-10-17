@@ -1,17 +1,17 @@
 <div align="center">
 
-# shell-command-guard
+# shell-guards
 
 **Tell whether a shell command line really runs a program — the way bash would read it.**
 
 Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed — zero dependencies.
 
-[![npm version](https://img.shields.io/npm/v/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
-[![npm downloads](https://img.shields.io/npm/dm/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
-[![CI](https://img.shields.io/github/actions/workflow/status/devmaxxx/shell-command-guard/ci.yml?branch=main&label=CI)](https://github.com/devmaxxx/shell-command-guard/actions/workflows/ci.yml)
-[![types included](https://img.shields.io/npm/types/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
+[![npm version](https://img.shields.io/npm/v/shell-guards)](https://www.npmjs.com/package/shell-guards)
+[![npm downloads](https://img.shields.io/npm/dm/shell-guards)](https://www.npmjs.com/package/shell-guards)
+[![CI](https://img.shields.io/github/actions/workflow/status/devmaxxx/shell-guards/ci.yml?branch=main&label=CI)](https://github.com/devmaxxx/shell-guards/actions/workflows/ci.yml)
+[![types included](https://img.shields.io/npm/types/shell-guards)](https://www.npmjs.com/package/shell-guards)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](./package.json)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/shell-command-guard)](https://bundlephobia.com/package/shell-command-guard)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/shell-guards)](https://bundlephobia.com/package/shell-guards)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 [Install](#install) · [Quick start](#quick-start) · [API](#api) · [Recipes](#recipes) · [FAQ](#faq) ·
@@ -31,7 +31,13 @@ Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed �
 - [API](#api)
   - [`deniedBy`](#deniedbycmd-deny) · [`runsCommand`](#runscommandcmd-command) ·
     [`commandSegments`](#commandsegmentscmd) · [`effectiveDeny`](#effectivedenypolicy-extra) ·
-    [`DEFAULT_DENY`](#default_deny) · [`DENY_REASONS`](#deny_reasons)
+    [`DEFAULT_DENY`](#default_deny) · [`DENY_REASONS`](#deny_reasons) ·
+    [`invocations`](#invocationscmd-command)
+- [Authorship](#authorship)
+  - [`authorshipViolations`](#authorshipviolationscmd-options) ·
+    [`authoredMessages`](#authoredmessagescmd) · [`branchNames`](#branchnamescmd) ·
+    [`aiSignatures`](#aisignaturestext) · [`isConventionalCommit`](#isconventionalcommitmessage-types) ·
+    [`isConventionalBranch`](#isconventionalbranchname-types)
 - [Recipes](#recipes)
 - [How it works](#how-it-works)
 - [Comparison](#comparison)
@@ -61,7 +67,7 @@ mention the words.
 | `python3 -c "import os; os.system('git push')"` | allowed | `'git push'` |
 | `grep "git push" notes.md` | allowed (`includes` would block it) | `null` — it only mentions it |
 
-`shell-command-guard` parses the line instead. Quoted strings, comments and quoted here-document bodies are data; every
+`shell-guards` parses the line instead. Quoted strings, comments and quoted here-document bodies are data; every
 command the line could run is checked; and anything it cannot read is denied rather than guessed.
 
 ## Features
@@ -75,6 +81,8 @@ command the line could run is checked; and anything it cannot read is denied rat
   `pnpm exec`, `npm exec`, `yarn exec`, `bun x`, `git -C dir`, and zsh's `=cmd`, `noglob` and `nocorrect`.
 - ⏱️ **Catches commands set up to run later** — `trap '…' EXIT`, `alias`, `git rebase -x`, `git bisect run`,
   `git submodule foreach`, `git filter-branch`, and a pager, editor or ssh command set with `git -c`.
+- ✍️ **Checks what a line writes** — commit messages, `gh pr` text and new branch names, read from `-m`, `--trailer`,
+  `-F -` here-documents and `$(cat <<'EOF' …)`, checked for AI signatures, Conventional Commits and Conventional Branch.
 - 🔒 **Fails closed** — an expansion in command position, unbalanced quoting, a stdin-fed shell or `source`, a script
   file, a `git -c alias.*` or `git config alias.*`, and a line nested deeper than the stack return a reason instead
   of `null` — never a throw.
@@ -89,16 +97,16 @@ command the line could run is checked; and anything it cannot read is denied rat
 ## Install
 
 ```sh
-npm install shell-command-guard
-pnpm add shell-command-guard
-yarn add shell-command-guard
-bun add shell-command-guard
+npm install shell-guards
+pnpm add shell-guards
+yarn add shell-guards
+bun add shell-guards
 ```
 
 ## Quick start
 
 ```ts
-import { DEFAULT_DENY, deniedBy, runsCommand } from 'shell-command-guard'
+import { DEFAULT_DENY, deniedBy, runsCommand } from 'shell-guards'
 
 deniedBy('pnpm test && sudo -u ci git push origin', ['git push']) // 'git push'
 deniedBy('grep "git push" notes.md', ['git push']) // null
@@ -122,6 +130,14 @@ runsCommand('echo "then git commit"', 'git commit') // false
 | [`DEFAULT_DENY`](#default_deny) | `readonly string[]` |
 | [`DENY_REASONS`](#deny_reasons) | `{ expansion, unbalanced, gitAlias, stdinScript, scriptFile }` |
 | `DenyPolicy` (type) | `{ deny: readonly string[] }` |
+| [`invocations`](#invocationscmd-command) | `(cmd: string, command: string \| readonly string[]) => Invocation[]` |
+| [`authorshipViolations`](#authorshipviolationscmd-options) | `(cmd: string, options?: AuthorshipOptions) => string[]` |
+| [`authoredMessages`](#authoredmessagescmd) | `(cmd: string) => AuthoredMessage[]` |
+| [`branchNames`](#branchnamescmd) | `(cmd: string) => (string \| null)[]` |
+| [`aiSignatures`](#aisignaturestext) | `(text: string) => { line: number, text: string }[]` |
+| [`isConventionalCommit`](#isconventionalcommitmessage-types) | `(message: string, types?: readonly string[]) => boolean` |
+| [`isConventionalBranch`](#isconventionalbranchname-types) | `(name: string, types?: readonly string[]) => boolean` |
+| `COMMIT_TYPES`, `BRANCH_TYPES` | `readonly string[]` |
 
 ### `deniedBy(cmd, deny)`
 
@@ -199,6 +215,62 @@ folded away.
 | `stdinScript` | `'shell reads script from stdin'` | a shell runs without `-c` and without a script file (`echo … \| sh`, `bash -s`), `source` reads stdin or a process substitution, or `parallel` reads its commands from stdin |
 | `scriptFile` | `'shell runs a script file'` | a shell runs a script file (`bash deploy.sh`) this reading cannot see |
 
+### `invocations(cmd, command)`
+
+Lists every command a line certainly runs that starts with one of the patterns, read the way `runsCommand` reads it.
+Each entry has the command's words as the shell passes them (wrappers off, quotes removed, `null` for a word that
+depends on what runs) and what it reads on stdin from a here-document or here-string. A word that is one whole
+`$(cat <<'EOF' … EOF)` resolves to the here-document.
+
+```ts
+invocations('sudo git -C repo commit -m "fix: x" <<< y', 'git commit')
+// [{ args: ['git', 'commit', '-m', 'fix: x'], stdin: 'y\n' }]
+```
+
+## Authorship
+
+Checks for what a command line *writes*: commit messages, pull-request text and branch names. Commands are found with
+`invocations`, so a message that only appears in an `echo` or a heredoc body is never read, and one behind `env`,
+`sudo` or `bash -c` always is.
+
+### `authorshipViolations(cmd, options?)`
+
+Returns one line per violation: an AI signature in any `git commit` or `gh pr create|edit|comment|review|merge`
+(message, `--trailer`, title, body or file), a commit subject that is not Conventional Commits, or a new branch that
+is not Conventional Branch. What the line does not show (an editor, `-C HEAD`, `$MSG`) is not a violation. Message
+files are read only through `options.readFile`; `commitTypes` and `branchTypes` replace the defaults.
+
+```ts
+authorshipViolations('git switch -c Fix_Login && git commit -m "fixed it"')
+// ['branch "Fix_Login" is not a Conventional Branch', 'commit subject "fixed it" is not a Conventional Commit']
+```
+
+### `authoredMessages(cmd)`
+
+One `{ kind: 'commit' | 'pull-request', text, file }` per `git commit` or `gh pr …` the line runs. `text` joins
+`-m` paragraphs and `--trailer` lines, or a title and body; it reads `-F -` / `--body-file -` from a here-document.
+`file` names a message file, which is not opened.
+
+### `branchNames(cmd)`
+
+The branches a line creates or renames: `git checkout -b`, `git switch -c`, `git branch <name>`, `git branch -m`,
+`git worktree add -b`, and `git worktree add <path>`, which names its branch after the path.
+
+### `aiSignatures(text)`
+
+The 1-based lines that sign a text as AI-written: a `*-By:` / `*-With:` trailer naming an AI tool, its no-reply
+address, a Claude Code session link, a "Generated with …" footer or a leading 🤖. A tool named in prose does not count.
+
+### `isConventionalCommit(message, types?)`
+
+Whether the first non-comment line is `<type>(<scope>)!: <description>` with a lowercase scope. Subjects git writes
+(`Merge …`, `fixup! …`, `Revert "…"`) pass. Types default to `COMMIT_TYPES`.
+
+### `isConventionalBranch(name, types?)`
+
+Whether a name is `<type>/<description>` in lowercase letters, digits and single hyphens, with dots only in a
+`release/` version. `main`, `master` and `develop` pass. Prefixes default to `BRANCH_TYPES`.
+
 ## Recipes
 
 ### Claude Code (or any AI agent) `PreToolUse` hook
@@ -210,13 +282,13 @@ blocks the call and shows stderr to the model.
 // ~/.claude/hooks/guard.mjs
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
-import { deniedBy, effectiveDeny } from 'shell-command-guard'
+import { deniedBy, effectiveDeny } from 'shell-guards'
 
 const { tool_input: input } = JSON.parse(readFileSync(0, 'utf8'))
 const hit = deniedBy(input.command ?? '', effectiveDeny({ deny: ['gh pr merge'] }))
 
 if (hit) {
-  console.error(`Blocked by shell-command-guard: ${hit}`)
+  console.error(`Blocked by shell-guards: ${hit}`)
   process.exit(2)
 }
 ```
@@ -231,6 +303,33 @@ if (hit) {
 }
 ```
 
+### Authorship hook for an AI agent
+
+Block a commit or pull request that an agent signs, or that breaks Conventional Commits or Conventional Branch.
+
+```js
+// ~/.claude/hooks/authorship.mjs
+import { existsSync, readFileSync } from 'node:fs'
+import process from 'node:process'
+import { authorshipViolations } from 'shell-guards'
+
+const { tool_input: input } = JSON.parse(readFileSync(0, 'utf8'))
+function readFile(path) {
+  try {
+    return existsSync(path) ? readFileSync(path, 'utf8') : null
+  }
+  catch {
+    return null
+  }
+}
+const violations = authorshipViolations(input.command ?? '', { readFile })
+
+if (violations.length > 0) {
+  console.error(`Fix and retry:\n- ${violations.join('\n- ')}`)
+  process.exit(2)
+}
+```
+
 ### Pre-exec / CI guard
 
 Check a command before a bot or pipeline hands it to a shell.
@@ -238,7 +337,7 @@ Check a command before a bot or pipeline hands it to a shell.
 ```js
 // guard.mjs — usage: node guard.mjs "$CMD" && sh -c "$CMD"
 import process from 'node:process'
-import { DEFAULT_DENY, deniedBy } from 'shell-command-guard'
+import { DEFAULT_DENY, deniedBy } from 'shell-guards'
 
 const hit = deniedBy(process.argv[2] ?? '', DEFAULT_DENY)
 
@@ -251,7 +350,7 @@ if (hit) {
 ### Custom deny-list, and checks that apply only to one command
 
 ```ts
-import { deniedBy, effectiveDeny, runsCommand } from 'shell-command-guard'
+import { deniedBy, effectiveDeny, runsCommand } from 'shell-guards'
 
 const deny = effectiveDeny({ deny: ['docker', 'kubectl delete', 'terraform apply'] })
 
@@ -278,7 +377,7 @@ Patterns are word prefixes, so deny the program or subcommand (`'git clean'`) wh
 
 ## Comparison
 
-| | shell-command-guard | [unbash](https://www.npmjs.com/package/unbash) | [shell-quote](https://www.npmjs.com/package/shell-quote) | Naive regex / `startsWith` |
+| | shell-guards | [unbash](https://www.npmjs.com/package/unbash) | [shell-quote](https://www.npmjs.com/package/shell-quote) | Naive regex / `startsWith` |
 | --- | --- | --- | --- | --- |
 | Purpose | decide if a line runs a command | full bash AST parser (no policy) | tokenize and quote argv | — |
 | Quotes and comments are data | ✅ | ✅ | ✅ | ❌ |
@@ -333,7 +432,7 @@ when you only need to know what certainly runs.
 `deniedBy` returns the reason as a string, so you decide which ones to let through:
 
 ```ts
-import { deniedBy, DENY_REASONS } from 'shell-command-guard'
+import { deniedBy, DENY_REASONS } from 'shell-guards'
 
 const hit = deniedBy(cmd, deny)
 const trusted = hit === DENY_REASONS.scriptFile && /^bash scripts\/[\w-]+\.sh$/.test(cmd)
@@ -374,9 +473,9 @@ check each one against the list.
 
 - [ ] More launchers: `setpriv`, `xcrun`, `direnv exec`, `mise exec`, `op run`
 - [ ] Resolve `rm` operands above `~` (`rm -rf ~/..`) against the real home directory
-- [ ] A small CLI for shell hooks and CI: `shell-command-guard --deny 'git push' -- "$CMD"`
+- [ ] A small CLI for shell hooks and CI: `shell-guards --deny 'git push' -- "$CMD"`
 
-Found a bypass or a missing wrapper? [Open an issue](https://github.com/devmaxxx/shell-command-guard/issues).
+Found a bypass or a missing wrapper? [Open an issue](https://github.com/devmaxxx/shell-guards/issues).
 
 ## Contributing
 

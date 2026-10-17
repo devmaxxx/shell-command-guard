@@ -1,6 +1,6 @@
-import type { Mode } from './types'
+import type { Found, Mode } from './types'
 import { DEFAULT_DENY } from './defaults'
-import { ASSIGNMENT_WORD, LEADING_ASSIGNMENTS, read, READINGS, tokenize } from './segments'
+import { ASSIGNMENT_WORD, BASH, LEADING_ASSIGNMENTS, read, READINGS, resolveWord, stdinOf, tokenize, words } from './segments'
 import { EXP, GLOB } from './word-reader'
 import {
   AWK_OPTS,
@@ -48,19 +48,41 @@ export interface DenyPolicy {
   deny: readonly string[]
 }
 
+/** A command a line certainly runs, as {@link invocations} finds it. */
+export interface Invocation {
+  /**
+   * The words of the command from its program name on, as the shell passes them, with wrappers such as `sudo`, `env`
+   * or `git -C dir` taken off. A word whose text depends on what runs (`$VAR`, most `$(…)`) is `null`.
+   */
+  args: (string | null)[]
+  /** What the command reads on stdin from a here-document or here-string; `null` when that is unknown or absent. */
+  stdin: string | null
+}
+
+// What `invocations` gathers for each match before its words are resolved.
+interface Collected {
+  tokens: string[]
+  stdin: string | null
+}
+
 // `strict` is enforcement: every shell's reading and a quote-blind pass are matched, a pattern an expansion could
 // still complete counts, and a command that cannot be read is denied. Otherwise only what the bash reading shows
-// certainly running counts. `gitAliasEnv` is inherited by every command started under that environment.
+// certainly running counts. `gitAliasEnv` is inherited by every command started under that environment. With
+// `collect`, every certain match is recorded and the reading goes on; `stdin` is what the command being matched
+// reads, and `subs` the $(…) sources of the line and of every script nested in it.
 interface Judge {
   patterns: readonly string[]
   strict: boolean
   gitAliasEnv?: boolean
+  collect?: Collected[]
+  stdin?: string | null
+  subs?: string[]
 }
 
 // What taking one wrapper off leaves: the command it runs, or the final answer.
 type Next = { tokens: string[] } | { verdict: string | null }
 
-const BASH_READING: readonly Mode[] = [{ comments: true, heredocs: 'on' }]
+const BASH_READING: readonly Mode[] = [BASH]
 
 const KEYWORDS = new Set(['!', '{', '}', 'if', 'then', 'do', 'else', 'elif', 'while', 'until'])
 const PARALLEL_SEPARATOR = /^:{3,4}\+?$/
@@ -172,6 +194,11 @@ function matchTokens(start: string[], outer: Judge, depth: number): string | nul
     }
 
     const hit = match(tokens, judge)
+
+    if (hit && judge.collect) {
+      judge.collect.push({ tokens, stdin: judge.stdin ?? null })
+      return null
+    }
 
     if (hit) {
       return hit
@@ -781,20 +808,32 @@ function quoteBlindMatch(cmd: string, judge: Judge): string | null {
 // Under `strict` every reading is matched, so a command only one shell's reading sees is still caught. The scanner
 // gets raw text, because a backslash-newline inside a quoted here-document is data, not a continuation.
 function judgeCommand(cmd: string, judge: Judge, depth: number): string | null {
-  const segments = new Set<string>()
+  const segments = new Map<string, Found>()
+  const subs = judge.subs ?? []
   let complete = false
 
   for (const mode of judge.strict ? READINGS : BASH_READING) {
-    const r = read(cmd, mode)
+    const r = read(cmd, mode, subs)
     complete ||= r.complete
 
-    for (const seg of r.segments) {
-      segments.add(seg)
+    // Readings are merged by text; the one reading `collect` takes keeps two equal commands apart.
+    for (const found of r.found) {
+      const key = judge.collect ? `${found.start}` : found.text
+
+      if (!segments.has(key)) {
+        segments.set(key, found)
+      }
     }
   }
 
-  for (const seg of segments) {
-    const hit = matchTokens(tokenize(seg), judge, depth)
+  // A nested script made of one command reads the stdin of the wrapper that runs it.
+  const commands = [...segments.values()].filter(f => f.text.trim() !== '')
+  const inherited = commands.length === 1 ? (judge.stdin ?? null) : null
+
+  for (const found of commands) {
+    const { tokens, hereString } = words(found.text)
+    const stdin = judge.collect ? (stdinOf(found, hereString, subs) ?? inherited) : null
+    const hit = matchTokens(tokens, judge.collect ? { ...judge, subs, stdin } : judge, depth)
 
     if (hit) {
       return hit
@@ -866,4 +905,28 @@ export function runsCommand(cmd: string, command: string | readonly string[]): b
  */
 export function effectiveDeny(policy: DenyPolicy, extra: readonly string[] = []): string[] {
   return [...DEFAULT_DENY, ...policy.deny, ...extra]
+}
+
+/**
+ * Lists every command a line certainly runs that starts with one of the given word-prefix patterns, with its words as
+ * the shell passes them and what it reads from a here-document or here-string.
+ *
+ * It reads the line the way {@link runsCommand} does: through the same wrappers and substitutions, as bash would,
+ * never guessing. A command whose program name comes from an expansion is not listed.
+ *
+ * @param cmd - The command line, as a shell would receive it.
+ * @param command - One word-prefix pattern (`'git commit'`) or a list of them.
+ * @returns The matching commands in source order, each with its words and stdin.
+ *
+ * @example
+ * invocations('sudo git -C repo commit -m "fix: x" <<< y', 'git commit')
+ * // [{ args: ['git', 'commit', '-m', 'fix: x'], stdin: 'y\n' }]
+ */
+export function invocations(cmd: string, command: string | readonly string[]): Invocation[] {
+  const collect: Collected[] = []
+  const subs: string[] = []
+  const patterns = typeof command === 'string' ? [command] : command
+
+  judgeCommand(cmd, { patterns, strict: false, collect, subs }, 0)
+  return collect.map(({ tokens, stdin }) => ({ args: tokens.map(t => resolveWord(t, subs)), stdin }))
 }

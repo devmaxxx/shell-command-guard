@@ -7,6 +7,9 @@ export const EXP = '\u0000'
 // Marks an unquoted `*`, `?` or `[…]`: in the command word it is an expansion, elsewhere the matcher reads it as text.
 export const GLOB = '\u0001'
 
+// Brackets the index of a $(…) right after its `EXP`, so the text a substitution holds can still be looked up.
+export const SUB = '\u0002'
+
 // The quotes, escapes and expansions inside a word. Substitutions hold whole command lists, so the reader that scans
 // those supplies them.
 export abstract class WordReader {
@@ -19,6 +22,9 @@ export abstract class WordReader {
   abstract backquote(i: number): number
 
   abstract comsub(i: number): number
+
+  // The marker a $(…) from `from` to `to` leaves in the segment, after its `EXP`.
+  abstract substitution(from: number, to: number): string
 
   // The quoted string, escape or expansion at i, or null. `dq`: inside double quotes or a here-document body. An
   // expansion is marked, because what it becomes is text the matcher cannot see.
@@ -53,7 +59,8 @@ export abstract class WordReader {
     }
 
     if (next === '(') {
-      return [this.comsub(i + 2), '']
+      const end = this.comsub(i + 2)
+      return [end, this.substitution(i + 2, end - 1)]
     }
 
     if (next === '[') {

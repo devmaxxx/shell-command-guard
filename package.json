@@ -1,18 +1,18 @@
 {
-  "name": "shell-command-guard",
+  "name": "shell-guards",
   "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@10.23.0",
   "description": "Tell whether a shell command really runs a program — a fail-closed deny-list that sees through quotes, here-documents, $(…), bash -c, env, sudo and xargs",
   "author": "Maksym Synenko",
   "license": "MIT",
-  "homepage": "https://github.com/devmaxxx/shell-command-guard#readme",
+  "homepage": "https://github.com/devmaxxx/shell-guards#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/devmaxxx/shell-command-guard.git"
+    "url": "git+https://github.com/devmaxxx/shell-guards.git"
   },
   "bugs": {
-    "url": "https://github.com/devmaxxx/shell-command-guard/issues"
+    "url": "https://github.com/devmaxxx/shell-guards/issues"
   },
   "keywords": [
     "shell",

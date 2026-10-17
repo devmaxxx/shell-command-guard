@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `invocations(cmd, command)` — lists each command a line certainly runs with its words as the shell passes them and
+  what it reads from a here-document or here-string; a word that is one whole `$(cat <<'EOF' … EOF)` resolves to the
+  here-document.
+- Authorship checks: `authorshipViolations(cmd, options?)` reports AI signatures, non-Conventional commit subjects and
+  non-Conventional branch names in what a line writes; built on `authoredMessages(cmd)` (commit and `gh pr` text),
+  `branchNames(cmd)`, `aiSignatures(text)`, `isConventionalCommit(message, types?)`,
+  `isConventionalBranch(name, types?)`, `COMMIT_TYPES` and `BRANCH_TYPES`.
 - `deniedBy(cmd, deny)` — checks a command line against word-prefix patterns and fails closed: returns the matched
   pattern, a `DENY_REASONS` value when what the line runs cannot be known, or `null`.
 - `runsCommand(cmd, command)` — tells whether a line certainly runs a program or subcommand, reading it only as bash
@@ -42,4 +49,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   operands, versioned interpreters (`python3.12`), and `gtimeout`, `fakeroot`, `unshare` and `sandbox-exec`.
 - Zero runtime dependencies, ESM only, TypeScript declarations, Node 20+.
 
-[0.1.0]: https://github.com/devmaxxx/shell-command-guard/releases/tag/v0.1.0
+[0.1.0]: https://github.com/devmaxxx/shell-guards/releases/tag/v0.1.0
