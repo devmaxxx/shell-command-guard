@@ -8,7 +8,7 @@ Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed �
 
 [![npm version](https://img.shields.io/npm/v/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
 [![npm downloads](https://img.shields.io/npm/dm/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
-[![CI](https://img.shields.io/github/actions/workflow/status/arenuzzz/shell-command-guard/ci.yml?branch=main&label=CI)](https://github.com/arenuzzz/shell-command-guard/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/devmaxxx/shell-command-guard/ci.yml?branch=main&label=CI)](https://github.com/devmaxxx/shell-command-guard/actions/workflows/ci.yml)
 [![types included](https://img.shields.io/npm/types/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](./package.json)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/shell-command-guard)](https://bundlephobia.com/package/shell-command-guard)
@@ -285,4 +285,4 @@ pnpm build      # tsdown
 
 ## License
 
-[MIT](./LICENSE) © arenuzzz
+[MIT](./LICENSE) © Maksym Synenko

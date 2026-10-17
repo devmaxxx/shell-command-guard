@@ -6,13 +6,13 @@
   "description": "Tell whether a shell command really runs a program — a fail-closed deny-list that sees through quotes, here-documents, $(…), bash -c, env, sudo and xargs",
   "author": "arenuzzz",
   "license": "MIT",
-  "homepage": "https://github.com/arenuzzz/shell-command-guard#readme",
+  "homepage": "https://github.com/devmaxxx/shell-command-guard#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arenuzzz/shell-command-guard.git"
+    "url": "git+https://github.com/devmaxxx/shell-command-guard.git"
   },
   "bugs": {
-    "url": "https://github.com/arenuzzz/shell-command-guard/issues"
+    "url": "https://github.com/devmaxxx/shell-command-guard/issues"
   },
   "keywords": [
     "shell",
