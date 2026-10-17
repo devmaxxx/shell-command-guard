@@ -4,6 +4,8 @@
 
 **Tell whether a shell command line really runs a program — the way bash would read it.**
 
+Sees through `sudo`/`env`/`xargs`/`bash -c`/heredocs/`$(…)` and fails closed — zero dependencies.
+
 [![npm version](https://img.shields.io/npm/v/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
 [![npm downloads](https://img.shields.io/npm/dm/shell-command-guard)](https://www.npmjs.com/package/shell-command-guard)
 [![CI](https://img.shields.io/github/actions/workflow/status/arenuzzz/shell-command-guard/ci.yml?branch=main&label=CI)](https://github.com/arenuzzz/shell-command-guard/actions/workflows/ci.yml)
@@ -239,17 +241,19 @@ Patterns are word prefixes, so deny the program or subcommand (`'git clean'`) wh
 
 ## Comparison
 
-| | shell-command-guard | [shell-quote](https://www.npmjs.com/package/shell-quote) | [bash-parser](https://www.npmjs.com/package/bash-parser) | Naive regex / `startsWith` |
+| | shell-command-guard | [unbash](https://www.npmjs.com/package/unbash) | [shell-quote](https://www.npmjs.com/package/shell-quote) | Naive regex / `startsWith` |
 | --- | --- | --- | --- | --- |
-| Purpose | decide if a line runs a command | tokenize and quote argv | bash AST | — |
+| Purpose | decide if a line runs a command | full bash AST parser (no policy) | tokenize and quote argv | — |
 | Quotes and comments are data | ✅ | ✅ | ✅ | ❌ |
-| Commands inside `$(…)` and backquotes | ✅ | ❌ | in the AST, you walk it | ❌ |
+| Commands inside `$(…)` and backquotes | ✅ | in the AST, you walk it | tokenised, not recognised as substitution | ❌ |
 | Reads `bash -c` / `eval` scripts | ✅ | ❌ | ❌ | ❌ |
 | Sees through `sudo`, `env`, `xargs`, … | ✅ | ❌ | ❌ | ❌ |
 | Fails closed on unknowns | ✅ | ❌ | ❌ | ❌ |
-| Runtime dependencies | 0 | 0 | 21 | 0 |
+| Runtime dependencies | 0 | 0 | 0 | 0 |
 
-shell-quote and bash-parser are parsers you could build a guard on; this package is that guard.
+unbash and shell-quote are parsers you could build a guard on; this package is that guard. If you need a full bash AST for
+something other than a policy decision, use unbash. ([bash-parser](https://www.npmjs.com/package/bash-parser) has had no
+release since 2022.)
 
 ## Security model and limits
 
