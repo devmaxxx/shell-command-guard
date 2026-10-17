@@ -38,14 +38,21 @@ command the line could run is checked; and anything it cannot read is denied rat
 ## Features
 
 - 🔍 **Follows what bash runs** — pipelines, `&&`/`||`/`;` lists, subshells, `{ …; }`, `$(…)`, backquotes, unquoted
-  here-documents, `bash -c`, `sh -c`, `eval`.
-- 🧅 **Sees through wrappers** — `env` (with `-S`), `sudo`, `nohup`, `timeout`, `nice`, `xargs`, `setsid`, `stdbuf`,
-  `ionice`, `flock`, `watch`, `find -exec`, `busybox`, `command`, `exec`, `npx`, `pnpm exec`, `npm exec`, `yarn dlx`,
-  `git -C dir`.
-- 🔒 **Fails closed** — an expansion in command position, unbalanced quoting, a stdin-fed shell, a script file or a
-  `git -c alias.*` returns a reason instead of `null`.
+  here-documents, `bash -c`, `sh -c`, `eval`, `coproc`, `function` bodies.
+- 🧅 **Sees through wrappers** — `env` (with `-S`), `sudo`, `doas`, `su -c`, `run0`, `pkexec`, `runuser`, `nohup`,
+  `timeout`, `nice`, `chrt`, `taskset`, `caffeinate`, `arch`, `xargs`, `parallel`, `setsid`, `stdbuf`, `ionice`,
+  `flock`, `watch`, `script`, `strace`, `ltrace`, `nsenter`, `chroot`, `systemd-run`, `firejail`, `faketime`,
+  `xvfb-run`, `unbuffer`, `find -exec`, `fd -x`, `ssh host …`, `busybox`, `toybox`, `command`, `exec`, `npx`,
+  `pnpm exec`, `npm exec`, `yarn exec`, `bun x`, `git -C dir`, and zsh's `=cmd`, `noglob` and `nocorrect`.
+- ⏱️ **Catches commands set up to run later** — `trap '…' EXIT`, `alias`, `git rebase -x`, `git bisect run`,
+  `git submodule foreach`, `git filter-branch`, and a pager, editor or ssh command set with `git -c`.
+- 🔒 **Fails closed** — an expansion in command position, unbalanced quoting, a stdin-fed shell or `source`, a script
+  file, a `git -c alias.*` or `git config alias.*`, and a line nested deeper than the stack return a reason instead
+  of `null` — never a throw.
 - Reads the line as bash, bash 3.2, zsh and sh do, so a command any of them would run is caught.
-- `rm` is matched by flag set: `rm -r -f /`, `rm -Rf /` and `rm / -rf` all match `'rm -rf /'`.
+- Searches the inline program of `python -c`, `node -e`, `perl -e`, `ruby -e`, `osascript -e`, `awk` and similar for
+  a pattern's words (`os.system("git push")`), since those can run anything.
+- `rm` is matched by flag set and folded path: `rm -r -f /`, `rm -Rf //` and `rm / -rf` all match `'rm -rf /'`.
 - Word-prefix patterns: `'git push'` matches `git push --force`, not `git pushd`.
 - A starter deny-list, `DEFAULT_DENY`.
 - Zero runtime dependencies, ESM only, typed, Node 20+.
@@ -143,23 +150,24 @@ effectiveDeny({ deny: ['docker'] }, ['kubectl delete'])
 
 A starting list for commands an unattended process should not run on its own:
 
-- privilege escalation — `sudo`, `su`, `doas`
-- wiping the disk or home directory — `rm -rf /`, `rm -rf /*`, `rm -rf ~`, `rm -rf ~/`, `rm -fr /`, `rm -fr ~`,
-  `mkfs`, `dd`
+- privilege escalation — `sudo`, `su`, `doas`, `pkexec`, `run0`
+- wiping the disk or home directory — `rm -rf /`, `rm -rf /*`, `rm -rf ~`, `rm -rf ~/`, `rm -rf ~/*`, `rm -fr /`,
+  `rm -fr ~`, `mkfs`, `dd`
 - powering off — `shutdown`, `reboot`, `halt`, `poweroff`
 - publishing beyond the local checkout — `git push`, `git reset --hard`, `git clean`, `npm publish`, `pnpm publish`,
   `yarn publish`
 
-`$HOME` counts as `~`, and each `rm` operand is tried.
+`$HOME` counts as `~`, and each `rm` operand is tried as written and with `//`, `/./` and a trailing `/` or `/.`
+folded away.
 
 ### `DENY_REASONS`
 
 | Key | Value | When |
 | --- | --- | --- |
 | `expansion` | `'command word comes from an expansion'` | the program name is `$VAR`, `$(…)`, a glob (`/usr/bin/g*`), a brace expansion or similar |
-| `unbalanced` | `'unbalanced quoting'` | a quote, `$(…)` or here-document never closes |
-| `gitAlias` | `'git -c alias.*'` | a git alias defined with `-c`, `GIT_CONFIG_KEY_n` or `GIT_CONFIG_PARAMETERS` could run anything |
-| `stdinScript` | `'shell reads script from stdin'` | a shell runs without `-c` and without a script file (`echo … \| sh`, `bash -s`) |
+| `unbalanced` | `'unbalanced quoting'` | a quote, `$(…)` or here-document never closes, or the line nests deeper than the stack can read |
+| `gitAlias` | `'git -c alias.*'` | a git alias defined with `-c`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_PARAMETERS` or `git config alias.*` could run anything |
+| `stdinScript` | `'shell reads script from stdin'` | a shell runs without `-c` and without a script file (`echo … \| sh`, `bash -s`), `source` reads stdin or a process substitution, or `parallel` reads its commands from stdin |
 | `scriptFile` | `'shell runs a script file'` | a shell runs a script file (`bash deploy.sh`) this reading cannot see |
 
 ## Recipes
@@ -255,12 +263,21 @@ unbash and shell-quote are parsers you could build a guard on; this package is t
 something other than a policy decision, use unbash. ([bash-parser](https://www.npmjs.com/package/bash-parser) has had no
 release since 2022.)
 
+Ready-made agent hooks take a different trade-off. Matt Pocock's
+[git-guardrails](https://www.aihero.dev/this-hook-stops-claude-code-running-dangerous-git-commands) skill blocks a fixed
+set of git commands from a Claude Code hook. [destructive_command_guard](https://github.com/Dicklesworthstone/destructive_command_guard)
+(dcg, Rust) matches pattern packs fast and, by its own description, allows unrecognised commands and does not look
+inside scripts. Both fail open on what they do not recognise; this package fails closed, so pair it with an allow
+rule when a reason such as `'shell runs a script file'` blocks a command you trust.
+
 ## Security model and limits
 
 - **Not a sandbox.** It reads a command line before it runs; it does not stop a program from doing anything once it
   runs. `deniedBy` refuses a shell given a script file or stdin, but a Makefile target, a package script
-  (`npm run release`), a program that runs its own commands, an alias or a function defined earlier in the session can
-  all run a denied command that never appears on the line.
+  (`npm run release`), a file read with `source`, an executable script (`./deploy`), a program that runs its own
+  commands, an alias or a function defined earlier in the session can all run a denied command that never appears on
+  the line. An interpreter's inline program is only searched for a pattern's words, so code that builds the command
+  (`"gi" + "t"`) passes.
 - **A best-effort deny-list.** Matching is by word prefix, so `rm -rf /` does not match `rm -rf /home`, and only `rm`
   is matched by flag set: `'git clean -fd'` does not match `git clean -df`. Deny the program or subcommand
   (`git clean`) when every spelling matters, and allow-list instead of deny-list when the stakes are high.
