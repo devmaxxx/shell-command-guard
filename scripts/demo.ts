@@ -17,7 +17,8 @@ const COMMANDS = [
 ]
 
 const FONT_SIZE = 14
-// Monospace fonts set at 14px advance about 8.4px per character; the cover over a typed line is sized from this.
+// Monospace fonts set at 14px advance about 8.4px per character; the cover over a typed line is sized from this, and
+// textLength pins the rendered text to the same width so a fallback font cannot peek out past the cover.
 const CHAR_WIDTH = 8.4
 const LINE_HEIGHT = 22
 const PAD_X = 20
@@ -99,8 +100,8 @@ function render(): string {
 
     lines.push(
       `<text class="p${i}" x="${PAD_X}" y="${y}" fill="${COLORS.prompt}">❯</text>`,
-      `<text x="${textX}" y="${y}" fill="${COLORS.text}" xml:space="preserve">${escapeXml(step.cmd)}</text>`,
-      `<rect class="c${i}" x="${textX - 1}" y="${y - LINE_HEIGHT + 4}" width="${coverWidth.toFixed(1)}" height="${LINE_HEIGHT + 2}" fill="${COLORS.window}" shape-rendering="crispEdges"/>`,
+      `<text x="${textX}" y="${y}" fill="${COLORS.text}" textLength="${(step.cmd.length * CHAR_WIDTH).toFixed(1)}" lengthAdjust="spacing" xml:space="preserve">${escapeXml(step.cmd)}</text>`,
+      `<rect class="cover c${i}" x="${textX - 1}" y="${y - LINE_HEIGHT + 4}" width="${coverWidth.toFixed(1)}" height="${LINE_HEIGHT + 2}" fill="${COLORS.window}" shape-rendering="crispEdges"/>`,
       `<text class="v${i}" x="${textX}" y="${y + LINE_HEIGHT}" xml:space="preserve">${verdict}</text>`,
     )
   })
@@ -113,7 +114,7 @@ text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",mo
 .fade{animation:fade ${total.toFixed(2)}s infinite}
 @keyframes fade{0%,${pct(total - 0.4, total)}{opacity:1}100%{opacity:0}}
 ${css.join('\n')}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}[class^="c"]{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}.cover{display:none}}
 </style>
 <rect x="0.5" y="0.5" width="${WIDTH - 1}" height="${height - 1}" rx="10" fill="${COLORS.window}" stroke="${COLORS.border}"/>
 <path d="M0.5 ${TITLE_BAR} V10.5 a10 10 0 0 1 10 -10 H${WIDTH - 10.5} a10 10 0 0 1 10 10 V${TITLE_BAR} Z" fill="${COLORS.bar}"/>

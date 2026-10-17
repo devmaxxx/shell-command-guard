@@ -57,7 +57,7 @@ text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",mo
 .p8{animation-name:p8}
 @keyframes v8{0%,83.351%{opacity:0}83.355%,100%{opacity:1}}
 @keyframes p8{0%,76.030%{opacity:0}76.034%,100%{opacity:1}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}[class^="c"]{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}.cover{display:none}}
 </style>
 <rect x="0.5" y="0.5" width="759" height="493" rx="10" fill="#0d1117" stroke="#30363d"/>
 <path d="M0.5 36 V10.5 a10 10 0 0 1 10 -10 H749.5 a10 10 0 0 1 10 10 V36 Z" fill="#161b22"/>
@@ -66,40 +66,40 @@ text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",mo
 <g class="fade">
 <text x="20" y="58" fill="#7d8590">// deniedBy(cmd, DEFAULT_DENY) for each line</text>
 <text class="p0" x="20" y="87" fill="#58a6ff">❯</text>
-<text x="36.8" y="87" fill="#e6edf3" xml:space="preserve">grep &quot;git push&quot; notes.md</text>
-<rect class="c0" x="35.8" y="69" width="210.0" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="87" fill="#e6edf3" textLength="201.6" lengthAdjust="spacing" xml:space="preserve">grep &quot;git push&quot; notes.md</text>
+<rect class="cover c0" x="35.8" y="69" width="210.0" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v0" x="36.8" y="109" xml:space="preserve"><tspan fill="#3fb950">✓ allowed</tspan></text>
 <text class="p1" x="20" y="131" fill="#58a6ff">❯</text>
-<text x="36.8" y="131" fill="#e6edf3" xml:space="preserve">env FOO=1 git push origin main</text>
-<rect class="c1" x="35.8" y="113" width="260.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="131" fill="#e6edf3" textLength="252.0" lengthAdjust="spacing" xml:space="preserve">env FOO=1 git push origin main</text>
+<rect class="cover c1" x="35.8" y="113" width="260.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v1" x="36.8" y="153" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
 <text class="p2" x="20" y="175" fill="#58a6ff">❯</text>
-<text x="36.8" y="175" fill="#e6edf3" xml:space="preserve">bash -c &quot;pnpm test &amp;&amp; git push&quot;</text>
-<rect class="c2" x="35.8" y="157" width="268.8" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="175" fill="#e6edf3" textLength="260.4" lengthAdjust="spacing" xml:space="preserve">bash -c &quot;pnpm test &amp;&amp; git push&quot;</text>
+<rect class="cover c2" x="35.8" y="157" width="268.8" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v2" x="36.8" y="197" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
 <text class="p3" x="20" y="219" fill="#58a6ff">❯</text>
-<text x="36.8" y="219" fill="#e6edf3" xml:space="preserve">echo origin | xargs git push</text>
-<rect class="c3" x="35.8" y="201" width="243.6" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="219" fill="#e6edf3" textLength="235.2" lengthAdjust="spacing" xml:space="preserve">echo origin | xargs git push</text>
+<rect class="cover c3" x="35.8" y="201" width="243.6" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v3" x="36.8" y="241" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
 <text class="p4" x="20" y="263" fill="#58a6ff">❯</text>
-<text x="36.8" y="263" fill="#e6edf3" xml:space="preserve">g'i't push --force</text>
-<rect class="c4" x="35.8" y="245" width="159.6" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="263" fill="#e6edf3" textLength="151.2" lengthAdjust="spacing" xml:space="preserve">g'i't push --force</text>
+<rect class="cover c4" x="35.8" y="245" width="159.6" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v4" x="36.8" y="285" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
 <text class="p5" x="20" y="307" fill="#58a6ff">❯</text>
-<text x="36.8" y="307" fill="#e6edf3" xml:space="preserve">echo 'git push' | sh</text>
-<rect class="c5" x="35.8" y="289" width="176.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="307" fill="#e6edf3" textLength="168.0" lengthAdjust="spacing" xml:space="preserve">echo 'git push' | sh</text>
+<rect class="cover c5" x="35.8" y="289" width="176.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v5" x="36.8" y="329" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;shell reads script from stdin&quot;</tspan></text>
 <text class="p6" x="20" y="351" fill="#58a6ff">❯</text>
-<text x="36.8" y="351" fill="#e6edf3" xml:space="preserve">python3 -c &quot;import os; os.system('git push')&quot;</text>
-<rect class="c6" x="35.8" y="333" width="386.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="351" fill="#e6edf3" textLength="378.0" lengthAdjust="spacing" xml:space="preserve">python3 -c &quot;import os; os.system('git push')&quot;</text>
+<rect class="cover c6" x="35.8" y="333" width="386.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v6" x="36.8" y="373" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;git push&quot;</tspan></text>
 <text class="p7" x="20" y="395" fill="#58a6ff">❯</text>
-<text x="36.8" y="395" fill="#e6edf3" xml:space="preserve">rm -r -f /</text>
-<rect class="c7" x="35.8" y="377" width="92.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="395" fill="#e6edf3" textLength="84.0" lengthAdjust="spacing" xml:space="preserve">rm -r -f /</text>
+<rect class="cover c7" x="35.8" y="377" width="92.4" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v7" x="36.8" y="417" xml:space="preserve"><tspan fill="#ff7b72">✗ denied</tspan>  <tspan fill="#e6edf3">&quot;rm -rf /&quot;</tspan></text>
 <text class="p8" x="20" y="439" fill="#58a6ff">❯</text>
-<text x="36.8" y="439" fill="#e6edf3" xml:space="preserve">pnpm test &amp;&amp; git commit -m &quot;push later&quot;</text>
-<rect class="c8" x="35.8" y="421" width="336.0" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
+<text x="36.8" y="439" fill="#e6edf3" textLength="327.6" lengthAdjust="spacing" xml:space="preserve">pnpm test &amp;&amp; git commit -m &quot;push later&quot;</text>
+<rect class="cover c8" x="35.8" y="421" width="336.0" height="24" fill="#0d1117" shape-rendering="crispEdges"/>
 <text class="v8" x="36.8" y="461" xml:space="preserve"><tspan fill="#3fb950">✓ allowed</tspan></text>
 </g>
 </svg>
