@@ -1,4 +1,4 @@
-const NONE: ReadonlySet<string> = new Set()
+export const NONE: ReadonlySet<string> = new Set()
 
 function opts(...names: string[]): ReadonlySet<string> {
   return new Set(names)
@@ -24,7 +24,7 @@ export const WRAPPERS: Readonly<Record<string, Wrapper>> = {
   'command': { opts: NONE },
   'dbus-launch': { opts: NONE },
   'doas': { opts: opts('-u', '-C') },
-  'env': { opts: opts('-u', '--unset', '-C', '--chdir') },
+  'env': { opts: opts('-u', '--unset', '-C', '--chdir', '-a', '--argv0', '-P') },
   'exec': { opts: opts('-a') },
   'faketime': { opts: opts('-p', '--date-prog'), operands: 1 },
   'firejail': { opts: NONE },
@@ -89,6 +89,7 @@ export const WRAPPERS: Readonly<Record<string, Wrapper>> = {
       '--property',
       '--description',
       '--slice',
+      '--service-type',
       '-E',
       '--setenv',
       '--uid',
@@ -112,9 +113,18 @@ export const WRAPPERS: Readonly<Record<string, Wrapper>> = {
     ),
   },
   'taskset': { opts: NONE, operands: 1 },
-  'time': { opts: NONE },
+  'time': { opts: opts('-f', '--format', '-o', '--output') },
   'timeout': { opts: opts('-s', '--signal', '-k', '--kill-after'), operands: 1 },
   'toybox': { opts: NONE },
+  // GNU coreutils installed on macOS under a `g` prefix.
+  'gtimeout': { opts: opts('-s', '--signal', '-k', '--kill-after'), operands: 1 },
+  'gnice': { opts: opts('-n', '--adjustment') },
+  'gnohup': { opts: NONE },
+  'gstdbuf': { opts: opts('-i', '--input', '-o', '--output', '-e', '--error') },
+  'fakeroot': { opts: opts('-i', '-s', '-b', '--lib', '--faked') },
+  'eatmydata': { opts: NONE },
+  'sandbox-exec': { opts: opts('-f', '-n', '-p', '-D') },
+  'unshare': { opts: opts('-S', '--setuid', '-G', '--setgid', '-R', '--root', '-w', '--wd', '--propagation', '--monotonic', '--boottime') },
   'unbuffer': { opts: NONE },
   'xvfb-run': {
     opts: opts(
@@ -205,6 +215,15 @@ export const PARALLEL_OPTS: ReadonlySet<string> = opts(
   '-S',
   '--sshlogin',
   '--delay',
+  '--halt',
+  '--header',
+  '--tagstring',
+  '--sshloginfile',
+  '--slf',
+  '--load',
+  '--nice',
+  '--rpl',
+  '--env',
   '--joblog',
   '--results',
   '--retries',
@@ -213,9 +232,19 @@ export const PARALLEL_OPTS: ReadonlySet<string> = opts(
   '--workdir',
 )
 export const WATCH_OPTS: ReadonlySet<string> = opts('-n', '--interval', '-q', '--equexit')
-export const FLOCK_OPTS: ReadonlySet<string> = opts('-w', '--wait', '--timeout', '-E', '--conflict-exit-code')
+export const FLOCK_OPTS: ReadonlySet<string> = opts('-w', '--wait', '--timeout', '-E', '--conflict-exit-code', '-c', '--command')
 export const AWK_OPTS: ReadonlySet<string> = opts('-F', '-v', '-f', '-e', '--source', '-i', '--include')
-export const RUNNER_OPTS: ReadonlySet<string> = opts('-p', '--package', '-w', '--workspace')
+export const RUNNER_OPTS: ReadonlySet<string> = opts(
+  '-p',
+  '--package',
+  '-w',
+  '--workspace',
+  '--registry',
+  '--cache',
+  '--prefix',
+  '--userconfig',
+  '--loglevel',
+)
 
 // The subcommands of a package manager that run a program (`run`) or hand their arguments to a shell (`shell`), by
 // the options the manager takes before its subcommand.
@@ -231,7 +260,6 @@ export const RUNNERS: ReadonlySet<string> = opts('npx', 'pnpx', 'bunx')
 
 export const SHELLS: ReadonlySet<string> = opts('bash', 'sh', 'zsh', 'dash', 'ash', 'ksh', 'mksh', 'fish', 'csh', 'tcsh')
 
-// Each `-exec cmd … ;` of find, and each `--exec cmd …` of fd, runs a command.
 export const FIND_EXEC: ReadonlySet<string> = opts('-exec', '-execdir', '-ok', '-okdir')
 export const FD_EXEC: ReadonlySet<string> = opts('-x', '--exec', '-X', '--exec-batch')
 
@@ -252,7 +280,6 @@ export const INTERPRETERS: Readonly<Record<string, readonly string[]>> = {
 }
 export const AWKS: ReadonlySet<string> = opts('awk', 'gawk', 'mawk', 'nawk')
 
-// git subcommand options whose value is a shell command.
 export const GIT_SCRIPT_OPTS: Readonly<Record<string, readonly string[]>> = {
   'rebase': ['-x', '--exec'],
   'difftool': ['-x', '--extcmd'],

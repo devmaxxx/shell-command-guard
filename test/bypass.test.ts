@@ -441,3 +441,45 @@ describe('a line nested deeper than the stack', () => {
     },
   )
 })
+
+describe('options that take a value are skipped before the wrapped command', () => {
+  it.each([
+    '/usr/bin/time -f %e git push',
+    'time -o out git push',
+    'env -P /usr/bin git push',
+    'env -a name git push',
+    'env --argv0 name git push',
+    'gtimeout 5 git push',
+    'fakeroot git push',
+    'unshare -r git push',
+    'sandbox-exec -p "(version 1)" git push',
+    'systemd-run --service-type notify git push',
+    'parallel --halt now,fail=1 git push ::: a',
+    'parallel --header : git push ::: a',
+    'parallel --tagstring x git push ::: a',
+    'npx --registry https://registry.example git push',
+    'xargs -tI{} git push {}',
+    'xargs -0I@ git @',
+    'flock -c "git push" /tmp/lock',
+    'flock -n --command "git push" /tmp/lock',
+    'flock /tmp/lock --command="git push"',
+    'ssh host -t git push',
+    'ssh host -- git push',
+    'eval -- git push',
+  ])('denies git push: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).not.toBeNull()
+  })
+
+  it.each([
+    'python -c\'import os; os.system("git push")\'',
+    'python3.12 -c \'import os; os.system("git push")\'',
+    'perl -e\'system("git push")\'',
+    'git rebase -x\'git push\' main',
+  ])('reads a program given in the same word as its option: %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBe('git push')
+  })
+
+  it.each(['flock /tmp/lock git status', 'flock -n 9', 'ssh host ls -l', 'xargs -n 1 echo'])('allows %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).toBeNull()
+  })
+})

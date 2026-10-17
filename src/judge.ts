@@ -11,6 +11,7 @@ import {
   GIT_OPTS,
   GIT_SCRIPT_OPTS,
   INTERPRETERS,
+  NONE,
   PARALLEL_OPTS,
   RUNNER_OPTS,
   RUNNER_SUBCOMMANDS,
@@ -62,7 +63,6 @@ type Next = { tokens: string[] } | { verdict: string | null }
 const BASH_READING: readonly Mode[] = [{ comments: true, heredocs: 'on' }]
 
 const KEYWORDS = new Set(['!', '{', '}', 'if', 'then', 'do', 'else', 'elif', 'while', 'until'])
-const NO_ARGS: ReadonlySet<string> = new Set()
 const PARALLEL_SEPARATOR = /^:{3,4}\+?$/
 // GNU parallel's replacement strings: `{}`, `{.}`, `{/}`, `{//}`, `{/.}`, `{#}`, `{%}` and the positional `{1}`.
 const PARALLEL_REPLACEMENT = /\{[\d./#%]*\}/g
@@ -141,6 +141,7 @@ function unknowable(judge: Judge, reason: string): string | null {
 }
 
 const MAX_DEPTH = 8
+const FLOCK_SCRIPT_OPTS = ['-c', '--command']
 
 function scriptVerdict(script: string, name: string, judge: Judge, depth: number): string | null {
   return depth >= MAX_DEPTH ? unknowable(judge, name) : judgeCommand(script, judge, depth + 1)
@@ -211,7 +212,7 @@ function unwrap(tokens: string[], head: string, judge: Judge, depth: number): Ne
     return { tokens: [exe, ...tokens.slice(1)] }
   }
 
-  if (exe === 'command' && tokens.slice(1, skipOptions(tokens, 1, NO_ARGS)).some(t => /^-\w*v/i.test(t))) {
+  if (exe === 'command' && tokens.slice(1, skipOptions(tokens, 1, NONE)).some(t => /^-\w*v/i.test(t))) {
     // `command -v` only looks a name up; it runs nothing.
     return { verdict: null }
   }
@@ -254,11 +255,12 @@ function unwrapProgram(tokens: string[], exe: string, judge: Judge, depth: numbe
     case 'flock':
       return flock(tokens, judge, depth)
     case 'find':
-      return { verdict: firstHit(execCommands(tokens, FIND_EXEC), sub => matchTokens(sub, judge, depth)) }
-    case 'fd':
-      return { verdict: firstHit(execCommands(tokens, FD_EXEC), sub => matchTokens(sub, judge, depth)) }
+    case 'fd': {
+      const commands = execCommands(tokens, exe === 'find' ? FIND_EXEC : FD_EXEC)
+      return { verdict: firstHit(commands, sub => matchTokens(sub, judge, depth)) }
+    }
     case 'eval':
-      return nestedScript(tokens.slice(1).join(' '), 'eval', judge, depth)
+      return nestedScript(tokens.slice(tokens[1] === '--' ? 2 : 1).join(' '), 'eval', judge, depth)
     case 'ssh':
       return ssh(tokens, judge, depth)
     case 'script':
@@ -287,8 +289,12 @@ function unwrapProgram(tokens: string[], exe: string, judge: Judge, depth: numbe
     return shellScript(tokens, exe, judge, depth)
   }
 
-  if (Object.hasOwn(INTERPRETERS, exe) || AWKS.has(exe)) {
-    return { verdict: judge.strict ? firstHit(inlinePrograms(tokens, exe), p => wordsMatch(p, judge)) : null }
+  // `python3.12` and `lua5.4` take the options of `python` and `lua`.
+  const interpreter = Object.hasOwn(INTERPRETERS, exe) ? exe : exe.replace(/[\d.]+$/, '')
+
+  if (Object.hasOwn(INTERPRETERS, interpreter) || AWKS.has(exe)) {
+    const program = AWKS.has(exe) ? exe : interpreter
+    return { verdict: judge.strict ? firstHit(inlinePrograms(tokens, program), p => wordsMatch(p, judge)) : null }
   }
 
   return { verdict: null }
@@ -316,17 +322,31 @@ function replaceString(options: string[]): string | null {
   for (let i = 0; i < options.length; i++) {
     const t = options[i] ?? ''
 
-    if (t === '-I') {
-      replace = options[++i] ?? null
+    if (t.startsWith('--')) {
+      if (t === '--replace') {
+        replace = '{}'
+      }
+      else if (t.startsWith('--replace=')) {
+        replace = t.slice('--replace='.length)
+      }
+
+      continue
     }
-    else if (t === '-i' || t === '--replace') {
-      replace = '{}'
-    }
-    else if (/^-I./i.test(t)) {
-      replace = t.slice(2)
-    }
-    else if (t.startsWith('--replace=')) {
-      replace = t.slice('--replace='.length)
+
+    // In a cluster such as -tI{} the first letter that takes an argument consumes the rest of the cluster.
+    for (let j = 1; j < t.length; j++) {
+      const letter = t[j] ?? ''
+      const rest = t.slice(j + 1)
+
+      if (letter === 'I' || letter === 'i') {
+        replace = rest || (letter === 'i' ? '{}' : (options[++i] ?? null))
+        break
+      }
+
+      if (XARGS_OPTS.has(`-${letter}`)) {
+        i += rest === '' ? 1 : 0
+        break
+      }
     }
   }
 
@@ -357,7 +377,9 @@ function parallel(tokens: string[], judge: Judge, depth: number): Next {
 
 // ssh hands the words after the host to a shell on that host, which reaches the same remotes and registries.
 function ssh(tokens: string[], judge: Judge, depth: number): Next {
-  const script = tokens.slice(skipOptions(tokens, 1, SSH_OPTS) + 1)
+  const afterHost = tokens.slice(skipOptions(tokens, 1, SSH_OPTS) + 1)
+  // ssh reads options again after the host (`ssh host -t cmd`, `ssh host -- cmd`).
+  const script = afterHost.slice(skipOptions(afterHost, 0, SSH_OPTS))
   return script.length === 0 ? { verdict: null } : nestedScript(script.join(' '), 'ssh', judge, depth)
 }
 
@@ -414,6 +436,16 @@ function source(tokens: string[], judge: Judge): Next {
   return { verdict: fromStdin ? unknowable(judge, DENY_REASONS.stdinScript) : null }
 }
 
+// Where the value starts when the option carries it in its own word: `--eval=code`, `-c=code` or `-c'code'`. A short
+// option followed by plain letters is a cluster, whose value is the next word.
+function attachedAt(t: string, name: string): number {
+  if (t.startsWith(`${name}=`)) {
+    return name.length + 1
+  }
+
+  return !name.startsWith('--') && t.startsWith(name) && !/^-[a-z]+$/i.test(t) ? name.length : -1
+}
+
 // The values of the options that carry a program or script: `-c code`, a cluster ending in it (`-Ic code`,
 // `-le code`), `--eval code` and `--eval=code`.
 function optionValues(tokens: string[], names: readonly string[]): string[] {
@@ -424,14 +456,15 @@ function optionValues(tokens: string[], names: readonly string[]): string[] {
     const name = names.find(n =>
       n.startsWith('--')
         ? t === n || t.startsWith(`${n}=`)
-        : t === n || (/^-[a-z]+$/i.test(t) && t.endsWith(n.charAt(1))),
+        : t === n || (/^-[a-z]+$/i.test(t) ? t.endsWith(n.charAt(1)) : t.startsWith(n)),
     )
 
     if (name === undefined) {
       continue
     }
 
-    const value = t.startsWith(`${name}=`) ? t.slice(name.length + 1) : tokens[++i]
+    const attached = attachedAt(t, name)
+    const value = attached < 0 ? tokens[++i] : t.slice(attached)
 
     if (value !== undefined) {
       values.push(value)
@@ -534,15 +567,17 @@ function watch(tokens: string[], judge: Judge, depth: number): Next {
   return exec ? { tokens: tokens.slice(end) } : nestedScript(tokens.slice(end).join(' '), 'watch', judge, depth)
 }
 
-// `flock [options] lock command…` or `flock [options] lock -c script`; with a file descriptor alone it runs nothing.
+// `flock [options] lock command…`, `flock [options] lock -c script` or `flock -c script [options] lock`; with a file
+// descriptor alone it runs nothing.
 function flock(tokens: string[], judge: Judge, depth: number): Next {
-  const rest = tokens.slice(skipOptions(tokens, 1, FLOCK_OPTS) + 1)
+  const end = skipOptions(tokens, 1, FLOCK_OPTS)
+  const rest = tokens.slice(end + 1)
+  const trailing = rest[0]?.startsWith('-') ? optionValues(['flock', ...rest.slice(0, 2)], FLOCK_SCRIPT_OPTS) : []
+  const scripts = [...optionValues(tokens.slice(0, end), FLOCK_SCRIPT_OPTS), ...trailing]
 
-  if (rest[0] !== '-c' && rest[0] !== '--command') {
-    return { tokens: rest }
-  }
-
-  return rest[1] === undefined ? { verdict: null } : nestedScript(rest[1], 'flock', judge, depth)
+  return scripts.length > 0
+    ? { verdict: firstHit(scripts, script => scriptVerdict(script, 'flock', judge, depth)) }
+    : { tokens: rest }
 }
 
 // Each `-exec cmd … ;` runs a command; `+` ends one only right after `{}`.
@@ -686,8 +721,30 @@ function rmByFlags(tokens: string[], judge: Judge): string | null {
     return null
   }
 
-  const spellings = operands.flatMap(operand => [operand, foldPath(operand)])
+  const spellings = operands.flatMap(operand => [operand, foldPath(operand), foldPath(resolveDots(operand))])
   return firstHit(spellings, operand => match(['rm', `-${flags}`, operand], judge))
+}
+
+// `/tmp/..` and `~/docs/..` name `/` and `~`; a relative path has no known base, so it is left as written.
+function resolveDots(path: string): string {
+  const [root = '', ...segments] = path.split('/')
+
+  if (root !== '' && root !== '~') {
+    return path
+  }
+
+  const kept: string[] = []
+
+  for (const segment of segments) {
+    if (segment === '..') {
+      kept.pop()
+    }
+    else if (segment !== '' && segment !== '.') {
+      kept.push(segment)
+    }
+  }
+
+  return kept.length > 0 ? [root, ...kept].join('/') : root || '/'
 }
 
 function foldPath(path: string): string {

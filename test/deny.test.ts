@@ -336,11 +336,14 @@ describe('rm operands are folded before matching', () => {
     ['rm -rf ~//', 'rm -rf ~'],
     ['rm -rf ~/*', 'rm -rf ~/*'],
     ['rm -rf ~/', 'rm -rf ~/'],
+    ['rm -rf /tmp/..', 'rm -rf /'],
+    ['rm -rf /usr/../', 'rm -rf /'],
+    ['rm -rf ~/docs/..', 'rm -rf ~'],
   ])('denies %j', (cmd, pattern) => {
     expect(deniedBy(cmd, DEFAULT_DENY)).toBe(pattern)
   })
 
-  it.each(['rm -rf ./dist', 'rm -rf ~/tmp/x', 'rm -rf /tmp/build'])('allows %j', (cmd) => {
+  it.each(['rm -rf ./dist', 'rm -rf ~/tmp/x', 'rm -rf /tmp/build', 'rm -rf /tmp/a/../b'])('allows %j', (cmd) => {
     expect(deniedBy(cmd, DEFAULT_DENY)).toBeNull()
   })
 })
