@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_DENY, deniedBy, DENY_REASONS, runsCommand } from '../src'
+import { commandSegments, DEFAULT_DENY, deniedBy, DENY_REASONS, runsCommand } from '../src'
 
 describe('runsCommand sees through wrappers and substitutions', () => {
   it.each([
@@ -106,4 +106,24 @@ describe('the default deny-list', () => {
       expect(deniedBy(cmd, DEFAULT_DENY)).toBeNull()
     },
   )
+})
+
+describe('deniedBy reads words the shell rewrites before running', () => {
+  it.each([
+    'git -calias.p=push p',
+    '{git,push}',
+    'git push{,}',
+    'a+=1 git push',
+    'a[1]=2 git push',
+    'FOO="a b" git push',
+    'pnpm exec -- git push',
+    'ksh -c "git push"',
+    'fish -c "git push"',
+  ])('denies %j', (cmd) => {
+    expect(deniedBy(cmd, ['git push'])).not.toBeNull()
+  })
+
+  it('drops leading assignments whose value holds blanks', () => {
+    expect(commandSegments('FOO="a b" pnpm lint')).toEqual(['pnpm lint'])
+  })
 })

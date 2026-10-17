@@ -1,6 +1,6 @@
 import type { Mode } from './types'
 import { DEFAULT_DENY } from './defaults'
-import { read, READINGS, tokenize } from './segments'
+import { ASSIGNMENT_WORD, LEADING_ASSIGNMENTS, read, READINGS, tokenize } from './segments'
 import { EXP } from './word-reader'
 
 /**
@@ -32,7 +32,7 @@ interface Judge {
 const BASH_READING: readonly Mode[] = [{ comments: true, heredocs: 'on' }]
 
 const KEYWORDS = new Set(['!', '{', '}', 'if', 'then', 'do', 'else', 'elif', 'while', 'until'])
-const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash'])
+const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ash', 'ksh', 'mksh', 'fish', 'csh', 'tcsh'])
 const NONE: ReadonlySet<string> = new Set()
 const SHELL_OPTS: ReadonlySet<string> = new Set(['-o', '+o', '-O', '+O', '--rcfile', '--init-file'])
 const PNPM_OPTS: ReadonlySet<string> = new Set(['-C', '--dir', '-F', '--filter', '--loglevel', '--reporter'])
@@ -164,7 +164,7 @@ function matchTokens(start: string[], judge: Judge, depth: number): string | nul
       return null
     }
 
-    const prefix = KEYWORDS.has(head) || /^[A-Z_]\w*=/i.test(head)
+    const prefix = KEYWORDS.has(head) || ASSIGNMENT_WORD.test(head)
 
     if (!prefix && head.includes(EXP)) {
       return unknowable(judge, DENY_REASONS.expansion)
@@ -198,7 +198,8 @@ function matchTokens(start: string[], judge: Judge, depth: number): string | nul
       tokens = tokens.slice(skipOptions(tokens, 1, ARG_OPTS[exe]))
     }
     else if (exe === 'pnpm' && ['exec', 'dlx'].includes(tokens[skipOptions(tokens, 1, PNPM_OPTS)] ?? '')) {
-      tokens = tokens.slice(skipOptions(tokens, 1, PNPM_OPTS) + 1)
+      // `pnpm exec -- git push` and `pnpm dlx -p pkg cmd` carry options of their own before the command.
+      tokens = tokens.slice(skipOptions(tokens, skipOptions(tokens, 1, PNPM_OPTS) + 1, ARG_OPTS.npx))
     }
     else if (exe === 'eval') {
       return depth >= MAX_DEPTH ? unknowable(judge, 'eval') : judgeCommand(tokens.slice(1).join(' '), judge, depth + 1)
@@ -240,7 +241,7 @@ function definesGitAlias(globals: string[]): boolean {
   return globals.some(
     (t, i) =>
       (/^alias\./i.test(t) && ['-c', '--config-env'].includes(globals[i - 1] ?? ''))
-      || /^--config-env=alias\./i.test(t),
+      || /^(?:--config-env=|-c)alias\./i.test(t),
   )
 }
 
@@ -251,7 +252,7 @@ function quoteBlindMatch(cmd: string, judge: Judge): string | null {
     const hit = match(
       seg
         .trim()
-        .replace(/^(\w+=\S*\s+)+/, '')
+        .replace(LEADING_ASSIGNMENTS, '')
         .split(/\s+/),
       judge,
     )

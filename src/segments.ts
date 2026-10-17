@@ -2,6 +2,14 @@ import type { Found, Mode } from './types'
 import { Reader } from './shell-reader'
 import { EXP, Unreadable } from './word-reader'
 
+// A quoted or escaped value may hold blanks, so the leading assignments are matched as shell words, not as `\S*`.
+const ASSIGNMENT_VALUE = String.raw`(?:[^\s'"\\]|\\[\s\S]|'[^']*'|"(?:[^"\\]|\\[\s\S])*")*`
+export const LEADING_ASSIGNMENTS: RegExp = new RegExp(
+  String.raw`^(?:[A-Z_]\w*(?:\[[^\]]*\])?\+?=${ASSIGNMENT_VALUE}(?:\s+|$))+`,
+  'i',
+)
+export const ASSIGNMENT_WORD: RegExp = /^[A-Z_]\w*(?:\[[^\]]*\])?\+?=/i
+
 export const READINGS: readonly Mode[] = [true, false].flatMap(comments =>
   (['on', 'bash32', 'off'] as const).map(heredocs => ({ comments, heredocs })),
 )
@@ -42,11 +50,13 @@ export function commandSegments(cmd: string): string[] {
       s
         .replaceAll(EXP, '')
         .trim()
-        .replace(/^(\w+=\S*\s+)+/, '')
+        .replace(LEADING_ASSIGNMENTS, '')
         .replace(/\s+/g, ' '),
     )
     .filter(Boolean)
 }
+
+const BRACE_EXPANSION = /^\{[^\s,]*,\S*\}|^\{[^\s,.]*\.\.\S*\}/
 
 export function tokenize(seg: string): string[] {
   const tokens: string[] = []
@@ -92,6 +102,10 @@ export function tokenize(seg: string): string[] {
     }
     else if (c === '\\' && i + 1 < seg.length) {
       cur = (cur ?? '') + seg[++i]
+    }
+    else if (c === '{' && BRACE_EXPANSION.test(seg.slice(i))) {
+      // `{git,push}` and `pu{s,}h` become other words before the command runs, like any expansion.
+      cur = (cur ?? '') + EXP + c
     }
     else if (/\s/.test(c)) {
       end()
