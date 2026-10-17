@@ -1,0 +1,58 @@
+{
+  "name": "shell-command-guard",
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.23.0",
+  "description": "Tell whether a shell command runs a given program — through quotes, here-documents, substitutions and wrappers like env, sudo, xargs and bash -c",
+  "author": "arenuzzz",
+  "license": "MIT",
+  "homepage": "https://github.com/arenuzzz/shell-command-guard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arenuzzz/shell-command-guard.git"
+  },
+  "bugs": "https://github.com/arenuzzz/shell-command-guard/issues",
+  "keywords": [
+    "shell",
+    "bash",
+    "command",
+    "deny-list",
+    "guard",
+    "parser",
+    "heredoc",
+    "security",
+    "agent",
+    "hook"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm build"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "9.5.1",
+    "@types/node": "22.20.5",
+    "eslint": "10.13.0",
+    "publint": "0.3.25",
+    "tsdown": "0.23.1",
+    "typescript": "6.0.3",
+    "unrun": "0.3.1",
+    "vitest": "5.0.5"
+  }
+}
